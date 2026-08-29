@@ -101,13 +101,19 @@ function Index() {
   const [balance, setBalance] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
-  const [history, setHistory] = useState<RoundResult[]>([]);
+  const [mode, setMode] = useState<ModeId>("30s");
+  const [historyByMode, setHistoryByMode] = useState<Record<ModeId, RoundResult[]>>({
+    "30s": [],
+    "1min": [],
+    "3min": [],
+    "5min": [],
+  });
   const [bets, setBets] = useState<PlacedBet[]>([]);
   const [tab, setTab] = useState<"history" | "bets">("history");
   const [betTarget, setBetTarget] = useState<BetTarget | null>(null);
   const [walletModal, setWalletModal] = useState<"deposit" | "withdraw" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const settlingRef = useRef<string | null>(null);
+  const settlingRef = useRef<Record<string, string | null>>({});
 
   // hydrate balance from localStorage after mount (SSR-safe)
   useEffect(() => {
@@ -120,52 +126,59 @@ function Index() {
     if (hydrated) window.localStorage.setItem("colorwin-balance", String(balance));
   }, [balance, hydrated]);
 
-  const period = now ? periodFromDate(now) : "…";
-  const secondsLeft = now ? secondsLeftInRound(now) : 0;
+  const activeMode = MODES.find((m) => m.id === mode)!;
+  const period = now ? periodFromDate(now, activeMode.seconds) : "…";
+  const secondsLeft = now ? secondsLeftInRound(now, activeMode.seconds) : 0;
   const bettingClosed = !now || secondsLeft <= 5;
+  const history = historyByMode[mode];
 
-  // countdown ticker + round settlement
+  // countdown ticker + round settlement (all modes run independently)
   useEffect(() => {
     const t = setInterval(() => {
       const d = new Date();
       setNow(d);
-      const p = periodFromDate(d);
-      if (secondsLeftInRound(d) === ROUND_SECONDS && settlingRef.current !== p) {
-        // a new round just started -> settle the previous one
-        const prevDate = new Date(d.getTime() - 1000);
-        const prevPeriod = periodFromDate(prevDate);
-        const result = drawResult(prevPeriod);
-        settlingRef.current = p;
-        setHistory((h) => [result, ...h].slice(0, 30));
-        setBets((prev) => {
-          let wonTotal = 0;
-          const next = prev.map((b) => {
-            if (b.status !== "pending" || b.period !== prevPeriod) return b;
-            const isWin =
-              typeof b.target === "number"
-                ? result.number === b.target
-                : result.colors.includes(b.target);
-            if (!isWin) return { ...b, status: "lost" as const, payout: 0 };
-            const multiplier =
-              typeof b.target === "number"
-                ? 9
-                : b.target === "violet"
-                  ? result.colors.length === 2
-                    ? 1.5
-                    : 4.5
-                  : result.colors.length === 2
-                    ? 1.5
-                    : 2;
-            const payout = Math.round(b.amount * multiplier * 100) / 100;
-            wonTotal += payout;
-            return { ...b, status: "won" as const, payout };
+      for (const m of MODES) {
+        const p = periodFromDate(d, m.seconds);
+        if (
+          secondsLeftInRound(d, m.seconds) === m.seconds &&
+          settlingRef.current[m.id] !== p
+        ) {
+          // a new round just started -> settle the previous one
+          const prevDate = new Date(d.getTime() - 1000);
+          const prevPeriod = periodFromDate(prevDate, m.seconds);
+          const result = drawResult(prevPeriod);
+          settlingRef.current[m.id] = p;
+          setHistoryByMode((h) => ({ ...h, [m.id]: [result, ...h[m.id]].slice(0, 30) }));
+          setBets((prev) => {
+            let wonTotal = 0;
+            const next = prev.map((b) => {
+              if (b.status !== "pending" || b.mode !== m.id || b.period !== prevPeriod) return b;
+              const isWin =
+                typeof b.target === "number"
+                  ? result.number === b.target
+                  : result.colors.includes(b.target);
+              if (!isWin) return { ...b, status: "lost" as const, payout: 0 };
+              const multiplier =
+                typeof b.target === "number"
+                  ? 9
+                  : b.target === "violet"
+                    ? result.colors.length === 2
+                      ? 1.5
+                      : 4.5
+                    : result.colors.length === 2
+                      ? 1.5
+                      : 2;
+              const payout = Math.round(b.amount * multiplier * 100) / 100;
+              wonTotal += payout;
+              return { ...b, status: "won" as const, payout };
+            });
+            if (wonTotal > 0) {
+              setBalance((bal) => bal + wonTotal);
+              setNotice(`You won ₹${fmt(wonTotal)}!`);
+            }
+            return next;
           });
-          if (wonTotal > 0) {
-            setBalance((bal) => bal + wonTotal);
-            setNotice(`You won ₹${fmt(wonTotal)}!`);
-          }
-          return next;
-        });
+        }
       }
     }, 500);
     return () => clearInterval(t);
@@ -190,7 +203,8 @@ function Index() {
     setBalance((b) => b - amount);
     setBets((prev) => [
       {
-        id: `${period}-${Date.now()}`,
+        id: `${mode}-${period}-${Date.now()}`,
+        mode,
         period,
         target: betTarget,
         label,
@@ -203,7 +217,12 @@ function Index() {
     setBetTarget(null);
   };
 
-  const pendingCount = useMemo(() => bets.filter((b) => b.status === "pending").length, [bets]);
+  const modeBets = useMemo(() => bets.filter((b) => b.mode === mode), [bets, mode]);
+  const pendingCount = useMemo(
+    () => modeBets.filter((b) => b.status === "pending").length,
+    [modeBets],
+  );
+
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background text-foreground">

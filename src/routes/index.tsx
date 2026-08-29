@@ -1,6 +1,33 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, Trophy, X, History, Ticket, Clock } from "lucide-react";
+import { Link } from "@tanstack/react-router";
+import {
+  Wallet,
+  ArrowDownToLine,
+  ArrowUpFromLine,
+  Trophy,
+  X,
+  History,
+  Ticket,
+  Clock,
+  MessageCircle,
+  Receipt,
+  Send,
+  ShieldCheck,
+} from "lucide-react";
+import {
+  useAppState,
+  adjustBalance,
+  requestDeposit,
+  requestWithdraw,
+  createTicket,
+  postMessage,
+  markTicketRead,
+  money as fmt,
+  timeAgo,
+  type Transaction,
+  type Ticket as SupportTicket,
+} from "@/lib/mock-store";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -93,13 +120,12 @@ const colorStyles: Record<ColorChoice, string> = {
   violet: "bg-game-violet text-white",
 };
 
-function fmt(n: number) {
-  return n.toLocaleString("en-IN", { minimumFractionDigits: 2, maximumFractionDigits: 2 });
-}
-
 function Index() {
-  const [balance, setBalance] = useState(0);
-  const [hydrated, setHydrated] = useState(false);
+  const app = useAppState();
+  const hydrated = app !== null;
+  const balance = app?.balance ?? 0;
+  const transactions = app?.transactions ?? [];
+  const tickets = app?.tickets ?? [];
   const [now, setNow] = useState<Date | null>(null);
   const [mode, setMode] = useState<ModeId>("30s");
   const [historyByMode, setHistoryByMode] = useState<Record<ModeId, RoundResult[]>>({
@@ -113,18 +139,9 @@ function Index() {
   const [betTarget, setBetTarget] = useState<BetTarget | null>(null);
   const [walletModal, setWalletModal] = useState<"deposit" | "withdraw" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
+  const [panel, setPanel] = useState<"none" | "transactions" | "support">("none");
   const settlingRef = useRef<Record<string, string | null>>({});
-
-  // hydrate balance from localStorage after mount (SSR-safe)
-  useEffect(() => {
-    const saved = window.localStorage.getItem("colorwin-balance");
-    setBalance(saved ? Number(saved) : 1000);
-    setHydrated(true);
-  }, []);
-
-  useEffect(() => {
-    if (hydrated) window.localStorage.setItem("colorwin-balance", String(balance));
-  }, [balance, hydrated]);
+  const paidRef = useRef<Record<string, boolean>>({});
 
   const activeMode = MODES.find((m) => m.id === mode)!;
   const period = now ? periodFromDate(now, activeMode.seconds) : "…";
@@ -172,8 +189,10 @@ function Index() {
               wonTotal += payout;
               return { ...b, status: "won" as const, payout };
             });
-            if (wonTotal > 0) {
-              setBalance((bal) => bal + wonTotal);
+            const payKey = `${m.id}-${prevPeriod}`;
+            if (wonTotal > 0 && !paidRef.current[payKey]) {
+              paidRef.current[payKey] = true;
+              adjustBalance(wonTotal);
               setNotice(`You won ₹${fmt(wonTotal)}!`);
             }
             return next;
@@ -200,7 +219,7 @@ function Index() {
       typeof betTarget === "number"
         ? `Number ${betTarget}`
         : betTarget.charAt(0).toUpperCase() + betTarget.slice(1);
-    setBalance((b) => b - amount);
+    adjustBalance(-amount);
     setBets((prev) => [
       {
         id: `${mode}-${period}-${Date.now()}`,
@@ -510,19 +529,20 @@ function Index() {
           kind={walletModal}
           balance={balance}
           onClose={() => setWalletModal(null)}
-          onConfirm={(amount) => {
+          onConfirm={(amount, method, utr) => {
             if (walletModal === "deposit") {
-              setBalance((b) => b + amount);
-              setNotice(`Deposited ₹${fmt(amount)} (demo)`);
+              requestDeposit(amount, method, utr);
+              setNotice(`Deposit request of ₹${fmt(amount)} sent for approval.`);
             } else {
               if (amount > balance) {
                 setNotice("Insufficient balance for withdrawal.");
-              } else {
-                setBalance((b) => b - amount);
-                setNotice(`Withdrew ₹${fmt(amount)} (demo)`);
+                return;
               }
+              requestWithdraw(amount, method);
+              setNotice(`Withdrawal request of ₹${fmt(amount)} sent for approval.`);
             }
             setWalletModal(null);
+            setPanel("transactions");
           }}
         />
       )}

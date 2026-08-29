@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, Trophy, X, History, Ticket } from "lucide-react";
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, Trophy, X, History, Ticket, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({

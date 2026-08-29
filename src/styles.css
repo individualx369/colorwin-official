@@ -100,6 +100,11 @@
   --sidebar-accent-foreground: oklch(0.208 0.042 265.755);
   --sidebar-border: oklch(0.929 0.013 255.508);
   --sidebar-ring: oklch(0.704 0.04 256.788);
+  --game-red: oklch(0.63 0.22 25);
+  --game-green: oklch(0.7 0.18 155);
+  --game-violet: oklch(0.55 0.24 300);
+  --gold: oklch(0.82 0.16 85);
+  --gold-foreground: oklch(0.25 0.06 85);
 }
 
 .dark {

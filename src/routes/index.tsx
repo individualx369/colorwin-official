@@ -308,7 +308,7 @@ function Index() {
                   className={`grid h-9 w-9 place-items-center rounded-full text-base font-black ${
                     colors.length === 2
                       ? "bg-gradient-to-br from-game-red via-game-violet to-game-violet text-white"
-                      : colorStyles[colors[0]]
+                      : colorStyles[colors[0]!]
                   } ${n === 5 ? "bg-gradient-to-br from-game-green via-game-violet to-game-violet" : ""}`}
                 >
                   {n}

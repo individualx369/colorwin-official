@@ -85,7 +85,7 @@ function fmt(n: number) {
 function Index() {
   const [balance, setBalance] = useState(0);
   const [hydrated, setHydrated] = useState(false);
-  const [now, setNow] = useState(() => new Date());
+  const [now, setNow] = useState<Date | null>(null);
   const [history, setHistory] = useState<RoundResult[]>([]);
   const [bets, setBets] = useState<PlacedBet[]>([]);
   const [tab, setTab] = useState<"history" | "bets">("history");
@@ -105,8 +105,9 @@ function Index() {
     if (hydrated) window.localStorage.setItem("colorwin-balance", String(balance));
   }, [balance, hydrated]);
 
-  const period = periodFromDate(now);
-  const secondsLeft = secondsLeftInRound(now);
+  const period = now ? periodFromDate(now) : "…";
+  const secondsLeft = now ? secondsLeftInRound(now) : 0;
+  const bettingClosed = !now || secondsLeft <= 5;
 
   // countdown ticker + round settlement
   useEffect(() => {

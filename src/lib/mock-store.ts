@@ -7,12 +7,21 @@ import { useEffect, useState } from "react";
 export type TxKind = "deposit" | "withdraw";
 export type TxStatus = "pending" | "approved" | "rejected";
 
+export interface BankDetails {
+  bankName: string;
+  accountNumber: string;
+  ifsc: string;
+  upiId: string;
+}
+
 export interface Transaction {
   id: string;
+  userId: string;
   kind: TxKind;
   amount: number;
   method: string;
   utr?: string | undefined;
+  bank?: BankDetails | undefined;
   status: TxStatus;
   createdAt: number;
   resolvedAt?: number | undefined;
@@ -37,10 +46,23 @@ export interface Ticket {
   messages: TicketMessage[];
 }
 
+export interface LiveBet {
+  id: string;
+  userId: string;
+  mode: string;
+  period: string;
+  label: string;
+  amount: number;
+  status: "pending" | "won" | "lost";
+  payout: number;
+}
+
 export interface AppState {
+  userId: string;
   balance: number;
   transactions: Transaction[];
   tickets: Ticket[];
+  bets: LiveBet[];
 }
 
 const KEY = "colorwin-app-state";
@@ -49,10 +71,13 @@ const EVENT = "colorwin-state-change";
 function seed(): AppState {
   const now = Date.now();
   return {
+    userId: "USR10241",
     balance: 1000,
+    bets: [],
     transactions: [
       {
         id: "tx-seed-1",
+        userId: "USR10241",
         kind: "deposit",
         amount: 500,
         method: "UPI",
@@ -63,9 +88,16 @@ function seed(): AppState {
       },
       {
         id: "tx-seed-2",
+        userId: "USR10241",
         kind: "withdraw",
         amount: 300,
-        method: "Bank Card",
+        method: "Bank Transfer",
+        bank: {
+          bankName: "HDFC Bank",
+          accountNumber: "50100234567890",
+          ifsc: "HDFC0001234",
+          upiId: "9608890478-2@nyes",
+        },
         status: "pending",
         createdAt: now - 1000 * 60 * 25,
       },
@@ -148,22 +180,47 @@ export function requestDeposit(amount: number, method: string, utr?: string) {
   update((s) => ({
     ...s,
     transactions: [
-      { id: uid("tx"), kind: "deposit", amount, method, utr, status: "pending", createdAt: Date.now() },
+      {
+        id: uid("tx"),
+        userId: s.userId,
+        kind: "deposit",
+        amount,
+        method,
+        utr,
+        status: "pending",
+        createdAt: Date.now(),
+      },
       ...s.transactions,
     ],
   }));
 }
 
 /** Withdrawals lock the funds immediately; a rejection refunds them. */
-export function requestWithdraw(amount: number, method: string) {
+export function requestWithdraw(amount: number, bank: BankDetails) {
   update((s) => ({
     ...s,
     balance: Math.round((s.balance - amount) * 100) / 100,
     transactions: [
-      { id: uid("tx"), kind: "withdraw", amount, method, status: "pending", createdAt: Date.now() },
+      {
+        id: uid("tx"),
+        userId: s.userId,
+        kind: "withdraw",
+        amount,
+        method: "Bank Transfer",
+        bank,
+        status: "pending",
+        createdAt: Date.now(),
+      },
       ...s.transactions,
     ],
   }));
+}
+
+/** Mirror the player's live bets into the shared store for the admin monitor. */
+export function syncBets(bets: LiveBet[]) {
+  const current = readState();
+  if (JSON.stringify(current.bets) === JSON.stringify(bets)) return;
+  writeState({ ...current, bets });
 }
 
 export function createTicket(subject: string, text: string) {

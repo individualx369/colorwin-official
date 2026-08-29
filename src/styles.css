@@ -59,6 +59,11 @@
   --color-sidebar-accent-foreground: var(--sidebar-accent-foreground);
   --color-sidebar-border: var(--sidebar-border);
   --color-sidebar-ring: var(--sidebar-ring);
+  --color-game-red: var(--game-red);
+  --color-game-green: var(--game-green);
+  --color-game-violet: var(--game-violet);
+  --color-gold: var(--gold);
+  --color-gold-foreground: var(--gold-foreground);
 }
 
 :root {
@@ -130,6 +135,11 @@
   --sidebar-accent-foreground: oklch(0.984 0.003 247.858);
   --sidebar-border: oklch(1 0 0 / 10%);
   --sidebar-ring: oklch(0.551 0.027 264.364);
+  --game-red: oklch(0.63 0.22 25);
+  --game-green: oklch(0.7 0.18 155);
+  --game-violet: oklch(0.55 0.24 300);
+  --gold: oklch(0.82 0.16 85);
+  --gold-foreground: oklch(0.25 0.06 85);
 }
 
 @layer base {

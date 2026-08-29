@@ -15,19 +15,11 @@ import {
   Send,
   ShieldCheck,
 } from "lucide-react";
-import {
-  useAppState,
-  adjustBalance,
-  requestDeposit,
-  requestWithdraw,
-  createTicket,
-  postMessage,
-  markTicketRead,
-  money as fmt,
-  timeAgo,
-  type Transaction,
-  type Ticket as SupportTicket,
-} from "@/lib/mock-store";
+import { useAppState, adjustBalance, syncBets, money as fmt, timeAgo } from "@/lib/mock-store";
+import { DepositModal } from "@/components/DepositModal";
+import { WithdrawModal } from "@/components/WithdrawModal";
+import { SupportChat } from "@/components/SupportChat";
+import { AdminPanel } from "@/components/AdminPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -139,7 +131,9 @@ function Index() {
   const [betTarget, setBetTarget] = useState<BetTarget | null>(null);
   const [walletModal, setWalletModal] = useState<"deposit" | "withdraw" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const [panel, setPanel] = useState<"none" | "transactions" | "support">("none");
+  const [panel, setPanel] = useState<"none" | "transactions">("none");
+  const [supportOpen, setSupportOpen] = useState(false);
+  const [adminOpen, setAdminOpen] = useState(false);
   const settlingRef = useRef<Record<string, string | null>>({});
   const paidRef = useRef<Record<string, boolean>>({});
 
@@ -204,6 +198,22 @@ function Index() {
   }, []);
 
   useEffect(() => {
+    if (!hydrated) return;
+    syncBets(
+      bets.map((b) => ({
+        id: b.id,
+        userId: app?.userId ?? "USR10241",
+        mode: b.mode,
+        period: b.period,
+        label: b.label,
+        amount: b.amount,
+        status: b.status,
+        payout: b.payout,
+      })),
+    );
+  }, [bets, hydrated]);
+
+  useEffect(() => {
     if (!notice) return;
     const t = setTimeout(() => setNotice(null), 4000);
     return () => clearTimeout(t);
@@ -243,8 +253,14 @@ function Index() {
   );
 
 
+  const unreadSupport = tickets.reduce((n, t) => n + t.unreadForUser, 0);
+  const adminPending =
+    transactions.filter((t) => t.status === "pending").length +
+    tickets.reduce((n, t) => n + t.unreadForAdmin, 0);
+  const pendingTx = transactions.filter((t) => t.status === "pending");
+
   return (
-    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background text-foreground">
+    <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background pb-24 text-foreground">
       {/* Top bar */}
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
@@ -254,9 +270,19 @@ function Index() {
             </div>
             <span className="text-lg font-black tracking-tight">ColorWin</span>
           </div>
-          <span className="rounded-full border border-border px-3 py-1 text-[11px] font-medium text-muted-foreground">
-            Demo mode
-          </span>
+          <div className="flex items-center gap-2">
+            <button
+              onClick={() => setSupportOpen(true)}
+              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[11px] font-bold text-muted-foreground active:scale-95"
+            >
+              <MessageCircle className="h-3.5 w-3.5" /> Help
+              {unreadSupport > 0 && (
+                <span className="grid h-4 min-w-4 place-items-center rounded-full bg-game-red px-1 text-[9px] font-black text-white">
+                  {unreadSupport}
+                </span>
+              )}
+            </button>
+          </div>
         </div>
       </header>
 
@@ -289,6 +315,53 @@ function Index() {
             </button>
           </div>
         </div>
+      </section>
+
+      {/* Transaction history */}
+      <section className="px-4 pt-3">
+        <button
+          onClick={() => setPanel(panel === "transactions" ? "none" : "transactions")}
+          className="flex w-full items-center justify-between rounded-2xl border border-border bg-card px-4 py-3 text-sm font-bold"
+        >
+          <span className="flex items-center gap-2">
+            <Receipt className="h-4 w-4 text-gold" /> Transaction History
+          </span>
+          <span className="text-xs font-semibold text-muted-foreground">
+            {pendingTx.length > 0 ? `${pendingTx.length} pending` : "View"}
+          </span>
+        </button>
+
+        {panel === "transactions" && (
+          <div className="mt-2 overflow-hidden rounded-2xl border border-border bg-card">
+            {transactions.length === 0 ? (
+              <p className="p-6 text-center text-sm text-muted-foreground">No transactions yet.</p>
+            ) : (
+              transactions.slice(0, 15).map((t) => (
+                <div key={t.id} className="flex items-center justify-between gap-3 border-b border-border/50 px-4 py-3 last:border-0">
+                  <div className="min-w-0">
+                    <p className="text-sm font-bold capitalize">
+                      {t.kind === "deposit" ? "Deposit" : "Withdrawal"} · ₹{fmt(t.amount)}
+                    </p>
+                    <p className="truncate font-mono text-[10px] text-muted-foreground">
+                      {t.utr ? `UTR ${t.utr}` : (t.bank?.upiId ?? t.method)} · {timeAgo(t.createdAt)}
+                    </p>
+                  </div>
+                  <span
+                    className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${
+                      t.status === "pending"
+                        ? "border-gold/40 bg-gold/10 text-gold"
+                        : t.status === "approved"
+                          ? "border-game-green/40 bg-game-green/10 text-game-green"
+                          : "border-game-red/40 bg-game-red/10 text-game-red"
+                    }`}
+                  >
+                    {t.status}
+                  </span>
+                </div>
+              ))
+            )}
+          </div>
+        )}
       </section>
 
       {/* Win notice */}
@@ -523,29 +596,61 @@ function Index() {
         />
       )}
 
-      {/* Wallet modal */}
-      {walletModal && (
-        <WalletModal
-          kind={walletModal}
-          balance={balance}
+      {/* Deposit / withdraw */}
+      {walletModal === "deposit" && (
+        <DepositModal
           onClose={() => setWalletModal(null)}
-          onConfirm={(amount, method, utr) => {
-            if (walletModal === "deposit") {
-              requestDeposit(amount, method, utr);
-              setNotice(`Deposit request of ₹${fmt(amount)} sent for approval.`);
-            } else {
-              if (amount > balance) {
-                setNotice("Insufficient balance for withdrawal.");
-                return;
-              }
-              requestWithdraw(amount, method);
-              setNotice(`Withdrawal request of ₹${fmt(amount)} sent for approval.`);
-            }
+          onDone={(msg) => {
+            setNotice(msg);
             setWalletModal(null);
             setPanel("transactions");
           }}
         />
       )}
+      {walletModal === "withdraw" && (
+        <WithdrawModal
+          balance={balance}
+          onClose={() => setWalletModal(null)}
+          onDone={(msg) => {
+            setNotice(msg);
+            setWalletModal(null);
+            setPanel("transactions");
+          }}
+        />
+      )}
+
+      {supportOpen && <SupportChat tickets={tickets} onClose={() => setSupportOpen(false)} />}
+      {adminOpen && app && <AdminPanel state={app} onClose={() => setAdminOpen(false)} />}
+
+      {/* Floating actions */}
+      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
+        <div className="pointer-events-auto flex justify-end gap-2 px-4 pb-5">
+          <button
+            onClick={() => setSupportOpen(true)}
+            className="relative grid h-12 w-12 place-items-center rounded-full bg-card text-gold shadow-xl ring-1 ring-border active:scale-95"
+            aria-label="Customer support"
+          >
+            <MessageCircle className="h-5 w-5" />
+            {unreadSupport > 0 && (
+              <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-game-red px-1 text-[10px] font-black text-white">
+                {unreadSupport}
+              </span>
+            )}
+          </button>
+          <button
+            onClick={() => setAdminOpen(true)}
+            className="flex items-center gap-2 rounded-full bg-gold px-4 py-3 text-xs font-black uppercase tracking-wider text-gold-foreground shadow-xl active:scale-95"
+          >
+            <ShieldCheck className="h-4 w-4" /> Admin Panel
+            {adminPending > 0 && (
+              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-background px-1 text-[10px] font-black text-gold">
+                {adminPending}
+              </span>
+            )}
+          </button>
+        </div>
+      </div>
+
     </div>
   );
 }

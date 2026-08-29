@@ -255,7 +255,7 @@ function Index() {
           <div className="shrink-0 text-right">
             <p className="text-xs text-muted-foreground">Countdown</p>
             <p className="font-mono text-2xl font-black tabular-nums text-gold">
-              00:{String(secondsLeft).padStart(2, "0")}
+              {now ? `00:${String(secondsLeft).padStart(2, "0")}` : "--:--"}
             </p>
           </div>
         </div>
@@ -266,21 +266,21 @@ function Index() {
         <div className="grid grid-cols-3 gap-2">
           <button
             onClick={() => setBetTarget("green")}
-            disabled={secondsLeft <= 5}
+            disabled={bettingClosed}
             className="rounded-xl bg-game-green py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-lg transition-transform active:scale-95 disabled:opacity-40"
           >
             Green
           </button>
           <button
             onClick={() => setBetTarget("violet")}
-            disabled={secondsLeft <= 5}
+            disabled={bettingClosed}
             className="rounded-xl bg-game-violet py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-lg transition-transform active:scale-95 disabled:opacity-40"
           >
             Violet
           </button>
           <button
             onClick={() => setBetTarget("red")}
-            disabled={secondsLeft <= 5}
+            disabled={bettingClosed}
             className="rounded-xl bg-game-red py-3.5 text-sm font-black uppercase tracking-wider text-white shadow-lg transition-transform active:scale-95 disabled:opacity-40"
           >
             Red
@@ -302,7 +302,7 @@ function Index() {
               <button
                 key={n}
                 onClick={() => setBetTarget(n)}
-                disabled={secondsLeft <= 5}
+                disabled={bettingClosed}
                 className="flex flex-col items-center gap-1 rounded-xl border border-border bg-card py-2 transition-transform active:scale-95 disabled:opacity-40"
               >
                 <span

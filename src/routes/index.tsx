@@ -1,6 +1,6 @@
 import { createFileRoute } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
-import { Wallet, ArrowDownToLine, ArrowUpFromLine, Trophy, X, History, Ticket } from "lucide-react";
+import { Wallet, ArrowDownToLine, ArrowUpFromLine, Trophy, X, History, Ticket, Clock } from "lucide-react";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -25,6 +25,7 @@ export const Route = createFileRoute("/")({
 
 type ColorChoice = "red" | "green" | "violet";
 type BetTarget = ColorChoice | number;
+type ModeId = "30s" | "1min" | "3min" | "5min";
 
 interface RoundResult {
   period: string;
@@ -34,6 +35,7 @@ interface RoundResult {
 
 interface PlacedBet {
   id: string;
+  mode: ModeId;
   period: string;
   target: BetTarget;
   label: string;
@@ -42,21 +44,33 @@ interface PlacedBet {
   payout: number;
 }
 
-const ROUND_SECONDS = 30;
+const MODES: { id: ModeId; label: string; seconds: number }[] = [
+  { id: "30s", label: "Win Go 30s", seconds: 30 },
+  { id: "1min", label: "Win Go 1Min", seconds: 60 },
+  { id: "3min", label: "Win Go 3Min", seconds: 180 },
+  { id: "5min", label: "Win Go 5Min", seconds: 300 },
+];
+
 const BET_AMOUNTS = [10, 100, 1000, 10000];
 
-function periodFromDate(d: Date) {
+function periodFromDate(d: Date, roundSeconds: number) {
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
     d.getDate(),
   ).padStart(2, "0")}`;
   const secondsSinceMidnight = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-  const roundIndex = Math.floor(secondsSinceMidnight / ROUND_SECONDS);
+  const roundIndex = Math.floor(secondsSinceMidnight / roundSeconds);
   return `${ymd}${String(roundIndex).padStart(4, "0")}`;
 }
 
-function secondsLeftInRound(d: Date) {
+function secondsLeftInRound(d: Date, roundSeconds: number) {
   const s = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-  return ROUND_SECONDS - (s % ROUND_SECONDS);
+  return roundSeconds - (s % roundSeconds);
+}
+
+function formatClock(total: number) {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function drawResult(period: string): RoundResult {
@@ -72,6 +86,7 @@ function drawResult(period: string): RoundResult {
   return { period, number, colors };
 }
 
+
 const colorStyles: Record<ColorChoice, string> = {
   red: "bg-game-red text-white",
   green: "bg-game-green text-white",
@@ -86,13 +101,19 @@ function Index() {
   const [balance, setBalance] = useState(0);
   const [hydrated, setHydrated] = useState(false);
   const [now, setNow] = useState<Date | null>(null);
-  const [history, setHistory] = useState<RoundResult[]>([]);
+  const [mode, setMode] = useState<ModeId>("30s");
+  const [historyByMode, setHistoryByMode] = useState<Record<ModeId, RoundResult[]>>({
+    "30s": [],
+    "1min": [],
+    "3min": [],
+    "5min": [],
+  });
   const [bets, setBets] = useState<PlacedBet[]>([]);
   const [tab, setTab] = useState<"history" | "bets">("history");
   const [betTarget, setBetTarget] = useState<BetTarget | null>(null);
   const [walletModal, setWalletModal] = useState<"deposit" | "withdraw" | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const settlingRef = useRef<string | null>(null);
+  const settlingRef = useRef<Record<string, string | null>>({});
 
   // hydrate balance from localStorage after mount (SSR-safe)
   useEffect(() => {
@@ -105,52 +126,59 @@ function Index() {
     if (hydrated) window.localStorage.setItem("colorwin-balance", String(balance));
   }, [balance, hydrated]);
 
-  const period = now ? periodFromDate(now) : "…";
-  const secondsLeft = now ? secondsLeftInRound(now) : 0;
+  const activeMode = MODES.find((m) => m.id === mode)!;
+  const period = now ? periodFromDate(now, activeMode.seconds) : "…";
+  const secondsLeft = now ? secondsLeftInRound(now, activeMode.seconds) : 0;
   const bettingClosed = !now || secondsLeft <= 5;
+  const history = historyByMode[mode];
 
-  // countdown ticker + round settlement
+  // countdown ticker + round settlement (all modes run independently)
   useEffect(() => {
     const t = setInterval(() => {
       const d = new Date();
       setNow(d);
-      const p = periodFromDate(d);
-      if (secondsLeftInRound(d) === ROUND_SECONDS && settlingRef.current !== p) {
-        // a new round just started -> settle the previous one
-        const prevDate = new Date(d.getTime() - 1000);
-        const prevPeriod = periodFromDate(prevDate);
-        const result = drawResult(prevPeriod);
-        settlingRef.current = p;
-        setHistory((h) => [result, ...h].slice(0, 30));
-        setBets((prev) => {
-          let wonTotal = 0;
-          const next = prev.map((b) => {
-            if (b.status !== "pending" || b.period !== prevPeriod) return b;
-            const isWin =
-              typeof b.target === "number"
-                ? result.number === b.target
-                : result.colors.includes(b.target);
-            if (!isWin) return { ...b, status: "lost" as const, payout: 0 };
-            const multiplier =
-              typeof b.target === "number"
-                ? 9
-                : b.target === "violet"
-                  ? result.colors.length === 2
-                    ? 1.5
-                    : 4.5
-                  : result.colors.length === 2
-                    ? 1.5
-                    : 2;
-            const payout = Math.round(b.amount * multiplier * 100) / 100;
-            wonTotal += payout;
-            return { ...b, status: "won" as const, payout };
+      for (const m of MODES) {
+        const p = periodFromDate(d, m.seconds);
+        if (
+          secondsLeftInRound(d, m.seconds) === m.seconds &&
+          settlingRef.current[m.id] !== p
+        ) {
+          // a new round just started -> settle the previous one
+          const prevDate = new Date(d.getTime() - 1000);
+          const prevPeriod = periodFromDate(prevDate, m.seconds);
+          const result = drawResult(prevPeriod);
+          settlingRef.current[m.id] = p;
+          setHistoryByMode((h) => ({ ...h, [m.id]: [result, ...h[m.id]].slice(0, 30) }));
+          setBets((prev) => {
+            let wonTotal = 0;
+            const next = prev.map((b) => {
+              if (b.status !== "pending" || b.mode !== m.id || b.period !== prevPeriod) return b;
+              const isWin =
+                typeof b.target === "number"
+                  ? result.number === b.target
+                  : result.colors.includes(b.target);
+              if (!isWin) return { ...b, status: "lost" as const, payout: 0 };
+              const multiplier =
+                typeof b.target === "number"
+                  ? 9
+                  : b.target === "violet"
+                    ? result.colors.length === 2
+                      ? 1.5
+                      : 4.5
+                    : result.colors.length === 2
+                      ? 1.5
+                      : 2;
+              const payout = Math.round(b.amount * multiplier * 100) / 100;
+              wonTotal += payout;
+              return { ...b, status: "won" as const, payout };
+            });
+            if (wonTotal > 0) {
+              setBalance((bal) => bal + wonTotal);
+              setNotice(`You won ₹${fmt(wonTotal)}!`);
+            }
+            return next;
           });
-          if (wonTotal > 0) {
-            setBalance((bal) => bal + wonTotal);
-            setNotice(`You won ₹${fmt(wonTotal)}!`);
-          }
-          return next;
-        });
+        }
       }
     }, 500);
     return () => clearInterval(t);
@@ -175,7 +203,8 @@ function Index() {
     setBalance((b) => b - amount);
     setBets((prev) => [
       {
-        id: `${period}-${Date.now()}`,
+        id: `${mode}-${period}-${Date.now()}`,
+        mode,
         period,
         target: betTarget,
         label,
@@ -188,7 +217,12 @@ function Index() {
     setBetTarget(null);
   };
 
-  const pendingCount = useMemo(() => bets.filter((b) => b.status === "pending").length, [bets]);
+  const modeBets = useMemo(() => bets.filter((b) => b.mode === mode), [bets, mode]);
+  const pendingCount = useMemo(
+    () => modeBets.filter((b) => b.status === "pending").length,
+    [modeBets],
+  );
+
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background text-foreground">
@@ -245,21 +279,60 @@ function Index() {
         </div>
       )}
 
+      {/* Game mode tabs */}
+      <section className="mt-4">
+        <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {MODES.map((m) => {
+            const active = m.id === mode;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                aria-pressed={active}
+                className={`flex w-[86px] shrink-0 flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 transition-colors ${
+                  active
+                    ? "border-gold bg-gold/10"
+                    : "border-border bg-card"
+                }`}
+              >
+                <span
+                  className={`grid h-11 w-11 place-items-center rounded-full ${
+                    active ? "bg-gold text-gold-foreground" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <Clock className="h-5 w-5" />
+                </span>
+                <span
+                  className={`text-[11px] font-bold leading-tight ${
+                    active ? "text-gold" : "text-muted-foreground"
+                  }`}
+                >
+                  Win Go
+                  <br />
+                  {m.label.replace("Win Go ", "")}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Round info */}
-      <section className="mt-4 px-4">
+      <section className="mt-3 px-4">
         <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-4">
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Period</p>
+            <p className="text-xs text-muted-foreground">{activeMode.label} · Period</p>
             <p className="truncate font-mono text-sm font-bold">{period}</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-xs text-muted-foreground">Countdown</p>
             <p className="font-mono text-2xl font-black tabular-nums text-gold">
-              {now ? `00:${String(secondsLeft).padStart(2, "0")}` : "--:--"}
+              {now ? formatClock(secondsLeft) : "--:--"}
             </p>
           </div>
         </div>
       </section>
+
 
       {/* Color buttons */}
       <section className="mt-4 px-4">
@@ -379,7 +452,7 @@ function Index() {
                 </tbody>
               </table>
             )
-          ) : bets.length === 0 ? (
+          ) : modeBets.length === 0 ? (
             <p className="p-6 text-center text-sm text-muted-foreground">
               No bets yet. Pick a color or number above.
             </p>
@@ -393,7 +466,7 @@ function Index() {
                 </tr>
               </thead>
               <tbody>
-                {bets.slice(0, 20).map((b) => (
+                {modeBets.slice(0, 20).map((b) => (
                   <tr key={b.id} className="border-b border-border/50 last:border-0">
                     <td className="px-4 py-2.5">
                       <span className="block text-xs font-bold">{b.label}</span>

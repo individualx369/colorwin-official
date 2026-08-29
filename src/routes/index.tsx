@@ -279,21 +279,60 @@ function Index() {
         </div>
       )}
 
+      {/* Game mode tabs */}
+      <section className="mt-4">
+        <div className="flex gap-2 overflow-x-auto px-4 pb-1 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
+          {MODES.map((m) => {
+            const active = m.id === mode;
+            return (
+              <button
+                key={m.id}
+                onClick={() => setMode(m.id)}
+                aria-pressed={active}
+                className={`flex w-[86px] shrink-0 flex-col items-center gap-1.5 rounded-2xl border px-2 py-3 transition-colors ${
+                  active
+                    ? "border-gold bg-gold/10"
+                    : "border-border bg-card"
+                }`}
+              >
+                <span
+                  className={`grid h-11 w-11 place-items-center rounded-full ${
+                    active ? "bg-gold text-gold-foreground" : "bg-secondary text-muted-foreground"
+                  }`}
+                >
+                  <Clock className="h-5 w-5" />
+                </span>
+                <span
+                  className={`text-[11px] font-bold leading-tight ${
+                    active ? "text-gold" : "text-muted-foreground"
+                  }`}
+                >
+                  Win Go
+                  <br />
+                  {m.label.replace("Win Go ", "")}
+                </span>
+              </button>
+            );
+          })}
+        </div>
+      </section>
+
       {/* Round info */}
-      <section className="mt-4 px-4">
+      <section className="mt-3 px-4">
         <div className="flex items-center justify-between rounded-2xl border border-border bg-card p-4">
           <div className="min-w-0">
-            <p className="text-xs text-muted-foreground">Period</p>
+            <p className="text-xs text-muted-foreground">{activeMode.label} · Period</p>
             <p className="truncate font-mono text-sm font-bold">{period}</p>
           </div>
           <div className="shrink-0 text-right">
             <p className="text-xs text-muted-foreground">Countdown</p>
             <p className="font-mono text-2xl font-black tabular-nums text-gold">
-              {now ? `00:${String(secondsLeft).padStart(2, "0")}` : "--:--"}
+              {now ? formatClock(secondsLeft) : "--:--"}
             </p>
           </div>
         </div>
       </section>
+
 
       {/* Color buttons */}
       <section className="mt-4 px-4">

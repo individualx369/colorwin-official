@@ -25,6 +25,7 @@ export const Route = createFileRoute("/")({
 
 type ColorChoice = "red" | "green" | "violet";
 type BetTarget = ColorChoice | number;
+type ModeId = "30s" | "1min" | "3min" | "5min";
 
 interface RoundResult {
   period: string;
@@ -34,6 +35,7 @@ interface RoundResult {
 
 interface PlacedBet {
   id: string;
+  mode: ModeId;
   period: string;
   target: BetTarget;
   label: string;
@@ -42,21 +44,33 @@ interface PlacedBet {
   payout: number;
 }
 
-const ROUND_SECONDS = 30;
+const MODES: { id: ModeId; label: string; seconds: number }[] = [
+  { id: "30s", label: "Win Go 30s", seconds: 30 },
+  { id: "1min", label: "Win Go 1Min", seconds: 60 },
+  { id: "3min", label: "Win Go 3Min", seconds: 180 },
+  { id: "5min", label: "Win Go 5Min", seconds: 300 },
+];
+
 const BET_AMOUNTS = [10, 100, 1000, 10000];
 
-function periodFromDate(d: Date) {
+function periodFromDate(d: Date, roundSeconds: number) {
   const ymd = `${d.getFullYear()}${String(d.getMonth() + 1).padStart(2, "0")}${String(
     d.getDate(),
   ).padStart(2, "0")}`;
   const secondsSinceMidnight = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-  const roundIndex = Math.floor(secondsSinceMidnight / ROUND_SECONDS);
+  const roundIndex = Math.floor(secondsSinceMidnight / roundSeconds);
   return `${ymd}${String(roundIndex).padStart(4, "0")}`;
 }
 
-function secondsLeftInRound(d: Date) {
+function secondsLeftInRound(d: Date, roundSeconds: number) {
   const s = d.getHours() * 3600 + d.getMinutes() * 60 + d.getSeconds();
-  return ROUND_SECONDS - (s % ROUND_SECONDS);
+  return roundSeconds - (s % roundSeconds);
+}
+
+function formatClock(total: number) {
+  const m = Math.floor(total / 60);
+  const s = total % 60;
+  return `${String(m).padStart(2, "0")}:${String(s).padStart(2, "0")}`;
 }
 
 function drawResult(period: string): RoundResult {
@@ -71,6 +85,7 @@ function drawResult(period: string): RoundResult {
           : ["green"];
   return { period, number, colors };
 }
+
 
 const colorStyles: Record<ColorChoice, string> = {
   red: "bg-game-red text-white",

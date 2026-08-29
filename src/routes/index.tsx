@@ -452,7 +452,7 @@ function Index() {
                 </tbody>
               </table>
             )
-          ) : bets.length === 0 ? (
+          ) : modeBets.length === 0 ? (
             <p className="p-6 text-center text-sm text-muted-foreground">
               No bets yet. Pick a color or number above.
             </p>
@@ -466,7 +466,7 @@ function Index() {
                 </tr>
               </thead>
               <tbody>
-                {bets.slice(0, 20).map((b) => (
+                {modeBets.slice(0, 20).map((b) => (
                   <tr key={b.id} className="border-b border-border/50 last:border-0">
                     <td className="px-4 py-2.5">
                       <span className="block text-xs font-bold">{b.label}</span>

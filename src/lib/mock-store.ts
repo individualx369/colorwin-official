@@ -12,11 +12,11 @@ export interface Transaction {
   kind: TxKind;
   amount: number;
   method: string;
-  utr?: string;
+  utr?: string | undefined;
   status: TxStatus;
   createdAt: number;
-  resolvedAt?: number;
-  adminNote?: string;
+  resolvedAt?: number | undefined;
+  adminNote?: string | undefined;
 }
 
 export interface TicketMessage {

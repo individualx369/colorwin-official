@@ -57,12 +57,46 @@ export interface LiveBet {
   payout: number;
 }
 
+export interface Account {
+  phone: string;
+  password: string;
+  userId: string;
+  inviteCode?: string | undefined;
+  createdAt: number;
+}
+
+export interface GiftClaim {
+  userId: string;
+  phone: string;
+  at: number;
+}
+
+export interface GiftCode {
+  code: string;
+  amount: number;
+  active: boolean;
+  createdAt: number;
+  claims: GiftClaim[];
+}
+
+export interface Redemption {
+  id: string;
+  userId: string;
+  code: string;
+  amount: number;
+  at: number;
+}
+
 export interface AppState {
   userId: string;
   balance: number;
   transactions: Transaction[];
   tickets: Ticket[];
   bets: LiveBet[];
+  accounts: Account[];
+  session: { phone: string; userId: string } | null;
+  giftCodes: GiftCode[];
+  redemptions: Redemption[];
 }
 
 const KEY = "colorwin-app-state";

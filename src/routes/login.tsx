@@ -230,13 +230,27 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
   };
 
   const submit = () => {
-    if (phone.length !== 10) return toast.error("Enter a valid 10-digit phone number.");
-    if (password.length < 6) return toast.error("Password must be at least 6 characters.");
-    if (password !== confirm) return toast.error("Passwords do not match.");
-    if (!sentCode || sms !== sentCode) return toast.error("Invalid SMS verification code.");
-    if (!agree) return toast.error("Please accept the Privacy Agreement.");
+    const error =
+      phone.length !== 10
+        ? "Enter a valid 10-digit phone number."
+        : password.length < 6
+          ? "Password must be at least 6 characters."
+          : password !== confirm
+            ? "Passwords do not match."
+            : !sentCode || sms !== sentCode
+              ? "Invalid SMS verification code."
+              : !agree
+                ? "Please accept the Privacy Agreement."
+                : null;
+    if (error) {
+      toast.error(error);
+      return;
+    }
     const res = registerAccount(phone, password, invite.trim() || undefined);
-    if (!res.ok) return toast.error(res.error);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
     onDone("Registered successfully");
   };
 

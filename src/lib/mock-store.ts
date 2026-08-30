@@ -359,3 +359,94 @@ export function timeAgo(ts: number) {
   if (s < 86400) return `${Math.floor(s / 3600)}h ago`;
   return `${Math.floor(s / 86400)}d ago`;
 }
+
+/* ---------------- auth ---------------- */
+
+const idFromPhone = (phone: string) => `USR${phone.replace(/\D/g, "").slice(-6)}`;
+
+export function registerAccount(phone: string, password: string, inviteCode?: string) {
+  const s = readState();
+  if (s.accounts.some((a) => a.phone === phone)) {
+    return { ok: false as const, error: "This phone number is already registered." };
+  }
+  const account: Account = {
+    phone,
+    password,
+    userId: idFromPhone(phone),
+    inviteCode,
+    createdAt: Date.now(),
+  };
+  writeState({
+    ...s,
+    accounts: [account, ...s.accounts],
+    session: { phone, userId: account.userId },
+    userId: account.userId,
+  });
+  return { ok: true as const };
+}
+
+export function loginAccount(phone: string, password: string) {
+  const s = readState();
+  const account = s.accounts.find((a) => a.phone === phone);
+  if (!account || account.password !== password) {
+    return { ok: false as const, error: "Incorrect phone number or password." };
+  }
+  writeState({ ...s, session: { phone, userId: account.userId }, userId: account.userId });
+  return { ok: true as const };
+}
+
+export function logout() {
+  update((s) => ({ ...s, session: null }));
+}
+
+/* ---------------- gift codes ---------------- */
+
+export function redeemGiftCode(code: string) {
+  const s = readState();
+  const normalized = code.trim().toUpperCase();
+  const gift = s.giftCodes.find((g) => g.code === normalized);
+  if (!gift || !gift.active) return { ok: false as const, error: "Invalid or expired gift code." };
+  const userId = s.session?.userId ?? s.userId;
+  if (gift.claims.some((c) => c.userId === userId)) {
+    return { ok: false as const, error: "You have already claimed this gift code." };
+  }
+  const at = Date.now();
+  writeState({
+    ...s,
+    balance: Math.round((s.balance + gift.amount) * 100) / 100,
+    giftCodes: s.giftCodes.map((g) =>
+      g.code === normalized
+        ? { ...g, claims: [...g.claims, { userId, phone: s.session?.phone ?? "guest", at }] }
+        : g,
+    ),
+    redemptions: [
+      { id: uid("gr"), userId, code: normalized, amount: gift.amount, at },
+      ...s.redemptions,
+    ],
+  });
+  return { ok: true as const, amount: gift.amount };
+}
+
+export function createGiftCode(code: string, amount: number) {
+  const s = readState();
+  const normalized = code.trim().toUpperCase();
+  if (!normalized || amount <= 0) return { ok: false as const, error: "Enter a code and amount." };
+  if (s.giftCodes.some((g) => g.code === normalized)) {
+    return { ok: false as const, error: "That code already exists." };
+  }
+  writeState({
+    ...s,
+    giftCodes: [
+      { code: normalized, amount, active: true, createdAt: Date.now(), claims: [] },
+      ...s.giftCodes,
+    ],
+  });
+  return { ok: true as const };
+}
+
+export function toggleGiftCode(code: string) {
+  update((s) => ({
+    ...s,
+    giftCodes: s.giftCodes.map((g) => (g.code === code ? { ...g, active: !g.active } : g)),
+  }));
+}

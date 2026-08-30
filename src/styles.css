@@ -64,6 +64,9 @@
   --color-game-violet: var(--game-violet);
   --color-gold: var(--gold);
   --color-gold-foreground: var(--gold-foreground);
+  --color-brand: var(--brand);
+  --color-brand-dark: var(--brand-dark);
+  --color-brand-foreground: var(--brand-foreground);
 }
 
 :root {
@@ -105,6 +108,9 @@
   --game-violet: oklch(0.55 0.24 300);
   --gold: oklch(0.82 0.16 85);
   --gold-foreground: oklch(0.25 0.06 85);
+  --brand: oklch(0.62 0.15 158);
+  --brand-dark: oklch(0.5 0.13 158);
+  --brand-foreground: oklch(0.99 0 0);
 }
 
 .dark {
@@ -145,6 +151,9 @@
   --game-violet: oklch(0.55 0.24 300);
   --gold: oklch(0.82 0.16 85);
   --gold-foreground: oklch(0.25 0.06 85);
+  --brand: oklch(0.62 0.15 158);
+  --brand-dark: oklch(0.5 0.13 158);
+  --brand-foreground: oklch(0.99 0 0);
 }
 
 @layer base {
@@ -156,4 +165,25 @@
     background-color: var(--color-background);
     color: var(--color-foreground);
   }
+}
+
+/* BG678-style solid green header gradient */
+.bg-brand-gradient {
+  background-image: linear-gradient(180deg, var(--brand) 0%, var(--brand-dark) 100%);
+}
+
+/* Light surface for BG678-style auth / rewards screens inside the dark app */
+.theme-light {
+  --background: oklch(0.97 0.005 250);
+  --foreground: oklch(0.2 0.03 250);
+  --card: oklch(1 0 0);
+  --card-foreground: oklch(0.2 0.03 250);
+  --popover: oklch(1 0 0);
+  --popover-foreground: oklch(0.2 0.03 250);
+  --secondary: oklch(0.96 0.007 248);
+  --secondary-foreground: oklch(0.25 0.03 250);
+  --muted: oklch(0.96 0.007 248);
+  --muted-foreground: oklch(0.55 0.03 250);
+  --border: oklch(0.9 0.012 250);
+  --input: oklch(0.9 0.012 250);
 }

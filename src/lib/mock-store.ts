@@ -155,6 +155,14 @@ function seed(): AppState {
         ],
       },
     ],
+    accounts: [],
+    session: null,
+    giftCodes: [
+      { code: "GIFT50", amount: 50, active: true, createdAt: now, claims: [] },
+      { code: "WELCOME100", amount: 100, active: true, createdAt: now, claims: [] },
+      { code: "BG678", amount: 678, active: true, createdAt: now, claims: [] },
+    ],
+    redemptions: [],
   };
 }
 
@@ -165,7 +173,8 @@ export function readState(): AppState {
   if (memory) return memory;
   try {
     const raw = window.localStorage.getItem(KEY);
-    memory = raw ? (JSON.parse(raw) as AppState) : seed();
+    const base = seed();
+    memory = raw ? { ...base, ...(JSON.parse(raw) as AppState) } : base;
   } catch {
     memory = seed();
   }

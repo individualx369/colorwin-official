@@ -1,5 +1,5 @@
 import { useState } from "react";
-import { X, Send, ShieldCheck } from "lucide-react";
+import { X, Send, ShieldCheck, Gift } from "lucide-react";
 import {
   money,
   timeAgo,
@@ -7,16 +7,19 @@ import {
   markTicketRead,
   resolveTransaction,
   setTicketStatus,
+  createGiftCode,
+  toggleGiftCode,
   type AppState,
 } from "@/lib/mock-store";
 
-type AdminTab = "deposits" | "withdrawals" | "bets" | "tickets";
+type AdminTab = "deposits" | "withdrawals" | "bets" | "tickets" | "gifts";
 
 const TABS: { id: AdminTab; label: string }[] = [
   { id: "deposits", label: "Deposit Requests" },
   { id: "withdrawals", label: "Withdrawal Requests" },
   { id: "bets", label: "Live Bet Monitor" },
   { id: "tickets", label: "Support Tickets" },
+  { id: "gifts", label: "Gift Code Manager" },
 ];
 
 export function AdminPanel({ state, onClose }: { state: AppState; onClose: () => void }) {
@@ -181,6 +184,8 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
           </div>
         )}
 
+        {tab === "gifts" && <GiftManager state={state} />}
+
         {tab === "tickets" && (
           <List empty="No support tickets yet.">
             {state.tickets.map((t) => (
@@ -189,6 +194,84 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
           </List>
         )}
       </div>
+    </div>
+  );
+}
+
+function GiftManager({ state }: { state: AppState }) {
+  const [code, setCode] = useState("");
+  const [amount, setAmount] = useState("50");
+
+  const create = () => {
+    const res = createGiftCode(code, Number(amount));
+    if (!res.ok) return;
+    setCode("");
+    setAmount("50");
+  };
+
+  return (
+    <div className="space-y-3">
+      <div className="rounded-2xl border border-border bg-card p-4">
+        <p className="flex items-center gap-2 text-sm font-black">
+          <Gift className="h-4 w-4 text-gold" /> Generate gift code
+        </p>
+        <div className="mt-3 flex gap-2">
+          <input
+            value={code}
+            onChange={(e) => setCode(e.target.value.toUpperCase().slice(0, 20))}
+            placeholder="CODE"
+            className="min-w-0 flex-1 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none"
+          />
+          <input
+            value={amount}
+            onChange={(e) => setAmount(e.target.value.replace(/\D/g, "").slice(0, 6))}
+            inputMode="numeric"
+            placeholder="₹"
+            className="w-20 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none"
+          />
+          <button
+            onClick={create}
+            className="shrink-0 rounded-xl bg-gold px-4 text-xs font-black uppercase text-gold-foreground active:scale-95"
+          >
+            Add
+          </button>
+        </div>
+      </div>
+
+      {state.giftCodes.map((g) => (
+        <div key={g.code} className="rounded-2xl border border-border bg-card p-4">
+          <div className="flex items-start justify-between gap-3">
+            <div className="min-w-0">
+              <p className="font-mono text-sm font-black">{g.code}</p>
+              <p className="text-xs text-muted-foreground">
+                ₹{money(g.amount)} · {g.claims.length} claimed · created {timeAgo(g.createdAt)}
+              </p>
+            </div>
+            <button
+              onClick={() => toggleGiftCode(g.code)}
+              className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${
+                g.active
+                  ? "border-game-green/40 bg-game-green/10 text-game-green"
+                  : "border-border text-muted-foreground"
+              }`}
+            >
+              {g.active ? "active" : "disabled"}
+            </button>
+          </div>
+          {g.claims.length > 0 && (
+            <ul className="mt-3 space-y-1 rounded-xl bg-secondary/50 p-2 text-[11px]">
+              {g.claims.map((c) => (
+                <li key={`${c.userId}-${c.at}`} className="flex justify-between gap-3">
+                  <span className="font-mono">{c.userId}</span>
+                  <span className="text-muted-foreground">
+                    {c.phone} · {timeAgo(c.at)}
+                  </span>
+                </li>
+              ))}
+            </ul>
+          )}
+        </div>
+      ))}
     </div>
   );
 }

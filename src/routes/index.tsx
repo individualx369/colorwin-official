@@ -280,7 +280,7 @@ function Index() {
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background pb-24 text-foreground">
       {/* Top bar */}
-      <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
+      <header className="bg-brand-gradient sticky top-0 z-20 px-4 py-3 text-brand-foreground">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
             <button
@@ -293,7 +293,7 @@ function Index() {
             <div className="min-w-0">
               <span className="block text-lg font-black leading-tight tracking-tight">ColorWin</span>
               {app?.session && (
-                <span className="block truncate text-[11px] text-muted-foreground">
+                <span className="block truncate text-[11px] opacity-85">
                   +91 {app.session.phone}
                 </span>
               )}
@@ -302,7 +302,7 @@ function Index() {
           <div className="flex items-center gap-2">
             <button
               onClick={() => setSupportOpen(true)}
-              className="flex items-center gap-1.5 rounded-full border border-border px-3 py-1.5 text-[11px] font-bold text-muted-foreground active:scale-95"
+              className="flex items-center gap-1.5 rounded-full bg-white/15 px-3 py-1.5 text-[11px] font-bold active:scale-95"
             >
               <MessageCircle className="h-3.5 w-3.5" /> Help
               {unreadSupport > 0 && (
@@ -313,7 +313,7 @@ function Index() {
             </button>
             <Link
               to="/gift"
-              className="flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-brand-foreground active:scale-95"
+              className="flex items-center gap-1.5 rounded-full bg-gold px-3 py-1.5 text-[11px] font-bold text-gold-foreground active:scale-95"
             >
               <Gift className="h-3.5 w-3.5" /> Gift
             </Link>
@@ -323,7 +323,7 @@ function Index() {
                 void navigate({ to: "/login" });
               }}
               aria-label="Log out"
-              className="rounded-full border border-border p-1.5 text-muted-foreground active:scale-95"
+              className="rounded-full bg-white/15 p-1.5 active:scale-95"
             >
               <LogOut className="h-3.5 w-3.5" />
             </button>

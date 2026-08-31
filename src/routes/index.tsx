@@ -1,4 +1,4 @@
-import { createFileRoute } from "@tanstack/react-router";
+import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { Link } from "@tanstack/react-router";
 import {
@@ -13,13 +13,20 @@ import {
   MessageCircle,
   Receipt,
   Send,
-  ShieldCheck,
+  Gift,
+  LogOut,
 } from "lucide-react";
-import { useAppState, adjustBalance, syncBets, money as fmt, timeAgo } from "@/lib/mock-store";
+import {
+  useAppState,
+  adjustBalance,
+  syncBets,
+  logout,
+  money as fmt,
+  timeAgo,
+} from "@/lib/mock-store";
 import { DepositModal } from "@/components/DepositModal";
 import { WithdrawModal } from "@/components/WithdrawModal";
 import { SupportChat } from "@/components/SupportChat";
-import { AdminPanel } from "@/components/AdminPanel";
 
 export const Route = createFileRoute("/")({
   head: () => ({
@@ -133,7 +140,8 @@ function Index() {
   const [notice, setNotice] = useState<string | null>(null);
   const [panel, setPanel] = useState<"none" | "transactions">("none");
   const [supportOpen, setSupportOpen] = useState(false);
-  const [adminOpen, setAdminOpen] = useState(false);
+  const navigate = useNavigate();
+  const tapRef = useRef<number[]>([]);
   const settlingRef = useRef<Record<string, string | null>>({});
   const paidRef = useRef<Record<string, boolean>>({});
 
@@ -219,6 +227,19 @@ function Index() {
     return () => clearTimeout(t);
   }, [notice]);
 
+  useEffect(() => {
+    if (app && !app.session) void navigate({ to: "/login" });
+  }, [app, navigate]);
+
+  const secretTap = () => {
+    const now = Date.now();
+    tapRef.current = [...tapRef.current, now].filter((t) => now - t < 600);
+    if (tapRef.current.length >= 2) {
+      tapRef.current = [];
+      void navigate({ to: "/admin-login" });
+    }
+  };
+
   const placeBet = (amount: number) => {
     if (betTarget === null) return;
     if (amount > balance) {
@@ -254,9 +275,6 @@ function Index() {
 
 
   const unreadSupport = tickets.reduce((n, t) => n + t.unreadForUser, 0);
-  const adminPending =
-    transactions.filter((t) => t.status === "pending").length +
-    tickets.reduce((n, t) => n + t.unreadForAdmin, 0);
   const pendingTx = transactions.filter((t) => t.status === "pending");
 
   return (
@@ -265,10 +283,21 @@ function Index() {
       <header className="sticky top-0 z-20 border-b border-border bg-background/95 px-4 py-3 backdrop-blur">
         <div className="flex items-center justify-between">
           <div className="flex items-center gap-2">
-            <div className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gold">
+            <button
+              onClick={secretTap}
+              aria-label="ColorWin"
+              className="grid h-9 w-9 shrink-0 place-items-center rounded-xl bg-gold"
+            >
               <Trophy className="h-5 w-5 text-gold-foreground" />
+            </button>
+            <div className="min-w-0">
+              <span className="block text-lg font-black leading-tight tracking-tight">ColorWin</span>
+              {app?.session && (
+                <span className="block truncate text-[11px] text-muted-foreground">
+                  +91 {app.session.phone}
+                </span>
+              )}
             </div>
-            <span className="text-lg font-black tracking-tight">ColorWin</span>
           </div>
           <div className="flex items-center gap-2">
             <button
@@ -281,6 +310,22 @@ function Index() {
                   {unreadSupport}
                 </span>
               )}
+            </button>
+            <Link
+              to="/gift"
+              className="flex items-center gap-1.5 rounded-full bg-brand px-3 py-1.5 text-[11px] font-bold text-brand-foreground active:scale-95"
+            >
+              <Gift className="h-3.5 w-3.5" /> Gift
+            </Link>
+            <button
+              onClick={() => {
+                logout();
+                void navigate({ to: "/login" });
+              }}
+              aria-label="Log out"
+              className="rounded-full border border-border p-1.5 text-muted-foreground active:scale-95"
+            >
+              <LogOut className="h-3.5 w-3.5" />
             </button>
           </div>
         </div>
@@ -620,7 +665,6 @@ function Index() {
       )}
 
       {supportOpen && <SupportChat tickets={tickets} onClose={() => setSupportOpen(false)} />}
-      {adminOpen && app && <AdminPanel state={app} onClose={() => setAdminOpen(false)} />}
 
       {/* Floating actions */}
       <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
@@ -634,17 +678,6 @@ function Index() {
             {unreadSupport > 0 && (
               <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-game-red px-1 text-[10px] font-black text-white">
                 {unreadSupport}
-              </span>
-            )}
-          </button>
-          <button
-            onClick={() => setAdminOpen(true)}
-            className="flex items-center gap-2 rounded-full bg-gold px-4 py-3 text-xs font-black uppercase tracking-wider text-gold-foreground shadow-xl active:scale-95"
-          >
-            <ShieldCheck className="h-4 w-4" /> Admin Panel
-            {adminPending > 0 && (
-              <span className="grid h-5 min-w-5 place-items-center rounded-full bg-background px-1 text-[10px] font-black text-gold">
-                {adminPending}
               </span>
             )}
           </button>

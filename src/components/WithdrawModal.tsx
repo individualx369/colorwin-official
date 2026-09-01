@@ -1,6 +1,8 @@
 import { useState } from "react";
-import { X } from "lucide-react";
+import { Building2, Smartphone, X } from "lucide-react";
 import { money, requestWithdraw, type BankDetails } from "@/lib/mock-store";
+
+type Channel = "upi" | "bank";
 
 export function WithdrawModal({
   balance,
@@ -11,37 +13,53 @@ export function WithdrawModal({
   onClose: () => void;
   onDone: (msg: string) => void;
 }) {
-  const [form, setForm] = useState<BankDetails>({
+  const [channel, setChannel] = useState<Channel>("upi");
+  const [form, setForm] = useState({
+    holderName: "",
+    upiId: "",
     bankName: "",
     accountNumber: "",
     ifsc: "",
-    upiId: "",
   });
   const [amount, setAmount] = useState(500);
   const [error, setError] = useState<string | null>(null);
 
-  const set = (k: keyof BankDetails) => (e: React.ChangeEvent<HTMLInputElement>) =>
+  const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value.slice(0, 60) }));
 
   const submit = () => {
-    const bank: BankDetails = {
-      bankName: form.bankName.trim(),
-      accountNumber: form.accountNumber.trim(),
-      ifsc: form.ifsc.trim().toUpperCase(),
-      upiId: form.upiId.trim(),
-    };
-    if (bank.bankName.length < 2) return setError("Enter your bank name.");
-    if (!/^\d{9,18}$/.test(bank.accountNumber)) return setError("Account number must be 9–18 digits.");
-    if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(bank.ifsc)) return setError("Enter a valid IFSC code (e.g. HDFC0001234).");
-    if (!/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(bank.upiId)) return setError("Enter a valid UPI ID.");
+    setError(null);
+    const holderName = form.holderName.trim();
+    if (holderName.length < 2) return setError("Enter the full registered name.");
+
+    let bank: BankDetails;
+    let method: string;
+
+    if (channel === "upi") {
+      const upiId = form.upiId.trim();
+      if (!/^[\w.\-]{2,}@[a-zA-Z]{2,}$/.test(upiId)) return setError("Enter a valid UPI ID.");
+      bank = { holderName, upiId };
+      method = "UPI Wallet Transfer";
+    } else {
+      const accountNumber = form.accountNumber.trim();
+      const ifsc = form.ifsc.trim().toUpperCase();
+      const bankName = form.bankName.trim();
+      if (bankName.length < 2) return setError("Enter your bank name.");
+      if (!/^\d{9,18}$/.test(accountNumber)) return setError("Account number must be 9–18 digits.");
+      if (!/^[A-Z]{4}0[A-Z0-9]{6}$/.test(ifsc)) return setError("Enter a valid IFSC code (e.g. HDFC0001234).");
+      bank = { holderName, bankName, accountNumber, ifsc };
+      method = "Bank Card / Account Transfer";
+    }
+
     if (!Number.isFinite(amount) || amount < 200) return setError("Minimum withdrawal is ₹200.");
     if (amount > balance) return setError("Amount exceeds your wallet balance.");
 
-    requestWithdraw(amount, bank);
+    requestWithdraw(amount, bank, method);
     onDone(`Withdrawal request of ₹${money(amount)} submitted — status: Pending.`);
   };
 
-  const field = "mt-1.5 w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring";
+  const field =
+    "mt-1.5 w-full rounded-xl border border-input bg-background px-3.5 py-2.5 text-sm outline-none focus:ring-2 focus:ring-ring";
   const lbl = "text-[11px] font-semibold uppercase tracking-wider text-muted-foreground";
 
   return (
@@ -56,25 +74,57 @@ export function WithdrawModal({
             <X className="h-5 w-5" />
           </button>
         </div>
-        <p className="mt-1 text-xs text-muted-foreground">Available: ₹{money(balance)}</p>
+        <p className="mt-1 text-xs text-muted-foreground">Verified balance: ₹{money(balance)}</p>
+
+        <div className="mt-4 grid grid-cols-2 gap-2">
+          {([
+            { id: "upi" as const, label: "UPI Wallet", Icon: Smartphone },
+            { id: "bank" as const, label: "Bank Card", Icon: Building2 },
+          ]).map(({ id, label, Icon }) => (
+            <button
+              key={id}
+              onClick={() => setChannel(id)}
+              className={`flex items-center justify-center gap-2 rounded-xl border py-2.5 text-xs font-black ${
+                channel === id
+                  ? "border-transparent bg-gold text-gold-foreground"
+                  : "border-border bg-secondary text-muted-foreground"
+              }`}
+            >
+              <Icon className="h-4 w-4" /> {label}
+            </button>
+          ))}
+        </div>
 
         <div className="mt-4 space-y-3">
           <div>
-            <label className={lbl} htmlFor="bankName">Bank Name</label>
-            <input id="bankName" value={form.bankName} onChange={set("bankName")} placeholder="HDFC Bank" className={field} />
+            <label className={lbl} htmlFor="holder">
+              {channel === "upi" ? "Full Registered Name" : "Account Holder Name"}
+            </label>
+            <input id="holder" value={form.holderName} onChange={set("holderName")} placeholder="Amit Kumar" className={field} />
           </div>
-          <div>
-            <label className={lbl} htmlFor="acc">Account Number</label>
-            <input id="acc" inputMode="numeric" value={form.accountNumber} onChange={set("accountNumber")} placeholder="50100234567890" className={field} />
-          </div>
-          <div>
-            <label className={lbl} htmlFor="ifsc">IFSC Code</label>
-            <input id="ifsc" value={form.ifsc} onChange={set("ifsc")} placeholder="HDFC0001234" className={`${field} uppercase`} />
-          </div>
-          <div>
-            <label className={lbl} htmlFor="upi">UPI ID</label>
-            <input id="upi" value={form.upiId} onChange={set("upiId")} placeholder="name@bank" className={field} />
-          </div>
+
+          {channel === "upi" ? (
+            <div>
+              <label className={lbl} htmlFor="upi">Official UPI ID</label>
+              <input id="upi" value={form.upiId} onChange={set("upiId")} placeholder="name@bank" className={field} />
+            </div>
+          ) : (
+            <>
+              <div>
+                <label className={lbl} htmlFor="bankName">Bank Name</label>
+                <input id="bankName" value={form.bankName} onChange={set("bankName")} placeholder="HDFC Bank" className={field} />
+              </div>
+              <div>
+                <label className={lbl} htmlFor="acc">Bank Account Number</label>
+                <input id="acc" inputMode="numeric" value={form.accountNumber} onChange={set("accountNumber")} placeholder="50100234567890" className={field} />
+              </div>
+              <div>
+                <label className={lbl} htmlFor="ifsc">Bank IFSC Code</label>
+                <input id="ifsc" value={form.ifsc} onChange={set("ifsc")} placeholder="HDFC0001234" className={`${field} uppercase`} />
+              </div>
+            </>
+          )}
+
           <div>
             <label className={lbl} htmlFor="wamt">Amount</label>
             <input
@@ -97,7 +147,7 @@ export function WithdrawModal({
           Submit Withdrawal Request
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Amount is locked until the admin marks the payout as paid.
+          Safe &amp; Secure 🔐 — amount is locked until the admin marks the payout as paid.
         </p>
       </div>
     </div>

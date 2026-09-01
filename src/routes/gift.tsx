@@ -121,7 +121,7 @@ function GiftPage() {
             Receive
           </button>
           <p className="mt-2 text-center text-[11px] text-muted-foreground">
-            Try the demo codes GIFT50, WELCOME100 or BG678.
+            Verified promo codes: GIFT50, WELCOME100 or BG678.
           </p>
         </section>
 

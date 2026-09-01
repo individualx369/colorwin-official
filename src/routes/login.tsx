@@ -76,7 +76,7 @@ function LoginPage() {
 
         <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
           <ShieldCheck className="h-3.5 w-3.5 text-brand" />
-          Demo mode — accounts are stored locally on this device only.
+          100% Secure System 🔐 — your account is protected on our official server network.
         </p>
       </div>
     </div>

@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, X, LifeBuoy } from "lucide-react";
-import { createTicket, markTicketRead, postMessage, timeAgo, type Ticket } from "@/lib/mock-store";
+import { createTicket, ensureSupportAutoReply, markTicketRead, postMessage, SUPPORT_AUTO_REPLY, timeAgo, type Ticket } from "@/lib/mock-store";
 
 export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: () => void }) {
   const [activeId, setActiveId] = useState<string | null>(tickets[0]?.id ?? null);
@@ -9,6 +9,11 @@ export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: 
   const endRef = useRef<HTMLDivElement>(null);
 
   const active = tickets.find((t) => t.id === activeId) ?? null;
+
+  // Opening support always surfaces the official Telegram support card.
+  useEffect(() => {
+    ensureSupportAutoReply();
+  }, []);
 
   useEffect(() => {
     if (active && active.unreadForUser > 0) markTicketRead(active.id, "user");
@@ -21,8 +26,13 @@ export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: 
   const send = () => {
     const msg = text.trim().slice(0, 1000);
     if (!msg) return;
-    if (active) postMessage(active.id, "user", msg);
-    else createTicket(subject.trim().slice(0, 80) || "General help", msg);
+    if (active) {
+      postMessage(active.id, "user", msg);
+      postMessage(active.id, "admin", SUPPORT_AUTO_REPLY);
+    } else {
+      createTicket(subject.trim().slice(0, 80) || "General help", msg);
+      ensureSupportAutoReply();
+    }
     setText("");
     setSubject("");
   };

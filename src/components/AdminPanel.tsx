@@ -114,6 +114,7 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
                   <StatusPill status={t.status} />
                 </div>
                 <dl className="mt-3 space-y-1 text-xs">
+                  <Row label="Holder" value={t.bank?.holderName ?? "—"} />
                   <Row label="Bank" value={t.bank?.bankName ?? "—"} />
                   <Row label="Account" value={t.bank?.accountNumber ?? "—"} />
                   <Row label="IFSC" value={t.bank?.ifsc ?? "—"} />

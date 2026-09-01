@@ -1,6 +1,6 @@
-// Mock in-browser backend for the ColorWin demo.
-// Shared between the player app (/) and the admin panel (/admin) via
-// localStorage + a custom event, so both loops can be tested live.
+// In-browser state engine for the ColorWin official server network.
+// Shared between the player app (/) and the admin panel via
+// localStorage + a custom event, so the full loop stays in sync live.
 
 import { useEffect, useState } from "react";
 
@@ -22,6 +22,7 @@ export interface Transaction {
   method: string;
   utr?: string | undefined;
   bank?: BankDetails | undefined;
+  purpose?: "security" | undefined;
   status: TxStatus;
   createdAt: number;
   resolvedAt?: number | undefined;
@@ -108,53 +109,8 @@ function seed(): AppState {
     userId: "USR10241",
     balance: 1000,
     bets: [],
-    transactions: [
-      {
-        id: "tx-seed-1",
-        userId: "USR10241",
-        kind: "deposit",
-        amount: 500,
-        method: "UPI",
-        utr: "302199481723",
-        status: "approved",
-        createdAt: now - 1000 * 60 * 60 * 5,
-        resolvedAt: now - 1000 * 60 * 60 * 4,
-      },
-      {
-        id: "tx-seed-2",
-        userId: "USR10241",
-        kind: "withdraw",
-        amount: 300,
-        method: "Bank Transfer",
-        bank: {
-          bankName: "HDFC Bank",
-          accountNumber: "50100234567890",
-          ifsc: "HDFC0001234",
-          upiId: "9608890478-2@nyes",
-        },
-        status: "pending",
-        createdAt: now - 1000 * 60 * 25,
-      },
-    ],
-    tickets: [
-      {
-        id: "tk-seed-1",
-        subject: "Deposit not credited",
-        status: "open",
-        createdAt: now - 1000 * 60 * 90,
-        updatedAt: now - 1000 * 60 * 88,
-        unreadForAdmin: 1,
-        unreadForUser: 0,
-        messages: [
-          {
-            id: "m1",
-            from: "user",
-            text: "I paid ₹500 by UPI but my balance did not update. UTR 302199481723.",
-            at: now - 1000 * 60 * 90,
-          },
-        ],
-      },
-    ],
+    transactions: [],
+    tickets: [],
     accounts: [],
     session: null,
     giftCodes: [
@@ -193,7 +149,7 @@ export function update(fn: (s: AppState) => AppState) {
   writeState(fn(readState()));
 }
 
-/** Subscribe to the mock backend. Returns null until hydrated (SSR-safe). */
+/** Subscribe to the shared app state. Returns null until hydrated (SSR-safe). */
 export function useAppState() {
   const [state, setState] = useState<AppState | null>(null);
 
@@ -219,7 +175,7 @@ export function adjustBalance(delta: number) {
   update((s) => ({ ...s, balance: Math.round((s.balance + delta) * 100) / 100 }));
 }
 
-export function requestDeposit(amount: number, method: string, utr?: string) {
+export function requestDeposit(amount: number, method: string, utr?: string, purpose?: "security") {
   update((s) => ({
     ...s,
     transactions: [
@@ -230,6 +186,7 @@ export function requestDeposit(amount: number, method: string, utr?: string) {
         amount,
         method,
         utr,
+        purpose,
         status: "pending",
         createdAt: Date.now(),
       },
@@ -239,7 +196,7 @@ export function requestDeposit(amount: number, method: string, utr?: string) {
 }
 
 /** Withdrawals lock the funds immediately; a rejection refunds them. */
-export function requestWithdraw(amount: number, bank: BankDetails) {
+export function requestWithdraw(amount: number, bank: BankDetails, method = "Bank Transfer") {
   update((s) => ({
     ...s,
     balance: Math.round((s.balance - amount) * 100) / 100,
@@ -249,7 +206,7 @@ export function requestWithdraw(amount: number, bank: BankDetails) {
         userId: s.userId,
         kind: "withdraw",
         amount,
-        method: "Bank Transfer",
+        method,
         bank,
         status: "pending",
         createdAt: Date.now(),

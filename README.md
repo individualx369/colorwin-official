@@ -1,6 +1,6 @@
 # Color Bet Hub
 
-Create a mobile-responsive color prediction website inspired by BG678. It must look like a professional mobile app when opened on a phone. Add three main betting buttons: Red, Green, and Violet. Show a Wallet Balance indicator at the top with a 'Deposit' and 'Withdraw' button. Also, create a clean UI layout for the game.
+Create a mobile-responsive color prediction website inspired by User. It must look like a professional mobile app when opened on a phone. Add three main betting buttons: Red, Green, and Violet. Show a Wallet Balance indicator at the top with a 'Deposit' and 'Withdraw' button. Also, create a clean UI layout for the game.
 
 This project was built with [Lovable](https://lovable.dev).
 

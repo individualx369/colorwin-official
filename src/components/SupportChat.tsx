@@ -6,6 +6,7 @@ export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: 
   const [activeId, setActiveId] = useState<string | null>(tickets[0]?.id ?? null);
   const [text, setText] = useState("");
   const [subject, setSubject] = useState("");
+  const [chose, setChose] = useState(false);
   const endRef = useRef<HTMLDivElement>(null);
 
   const active = tickets.find((t) => t.id === activeId) ?? null;
@@ -14,6 +15,10 @@ export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: 
   useEffect(() => {
     ensureSupportAutoReply();
   }, []);
+
+  useEffect(() => {
+    if (!chose && tickets[0]) setActiveId(tickets[0].id);
+  }, [chose, tickets]);
 
   useEffect(() => {
     if (active && active.unreadForUser > 0) markTicketRead(active.id, "user");
@@ -51,7 +56,7 @@ export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: 
 
       <div className="flex gap-2 overflow-x-auto border-b border-border px-4 py-2 [scrollbar-width:none] [&::-webkit-scrollbar]:hidden">
         <button
-          onClick={() => setActiveId(null)}
+          onClick={() => { setChose(true); setActiveId(null); }}
           className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
             activeId === null ? "bg-gold text-gold-foreground" : "bg-secondary text-muted-foreground"
           }`}
@@ -61,7 +66,7 @@ export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: 
         {tickets.map((t) => (
           <button
             key={t.id}
-            onClick={() => setActiveId(t.id)}
+            onClick={() => { setChose(true); setActiveId(t.id); }}
             className={`shrink-0 rounded-full px-3 py-1.5 text-xs font-bold ${
               activeId === t.id ? "bg-gold text-gold-foreground" : "bg-secondary text-muted-foreground"
             }`}

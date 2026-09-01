@@ -4,10 +4,18 @@ import qrAsset from "@/assets/navi-upi-qr.jpg.asset.json";
 import { money, requestDeposit } from "@/lib/mock-store";
 
 const UPI_ID = "9608890478-2@nyes";
-const PRESETS = [100, 500, 1000, 5000];
+const PRESETS = [100, 200, 500, 1000];
 
-export function DepositModal({ onClose, onDone }: { onClose: () => void; onDone: (msg: string) => void }) {
-  const [amount, setAmount] = useState(500);
+export function DepositModal({
+  onClose,
+  onDone,
+  securityPass = false,
+}: {
+  onClose: () => void;
+  onDone: (msg: string) => void;
+  securityPass?: boolean;
+}) {
+  const [amount, setAmount] = useState(securityPass ? 150 : 500);
   const [utr, setUtr] = useState("");
   const [copied, setCopied] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -24,15 +32,16 @@ export function DepositModal({ onClose, onDone }: { onClose: () => void; onDone:
 
   const submit = () => {
     const clean = utr.replace(/\s/g, "");
-    if (!Number.isFinite(amount) || amount < 100) {
-      setError("Minimum deposit is ₹100.");
+    const min = securityPass ? 150 : 100;
+    if (!Number.isFinite(amount) || amount < min) {
+      setError(`Minimum deposit is ₹${min}.`);
       return;
     }
     if (!/^\d{12}$/.test(clean)) {
       setError("Enter the 12-digit UTR / Transaction ID from your UPI app.");
       return;
     }
-    requestDeposit(amount, "Navi UPI", clean);
+    requestDeposit(amount, "Navi UPI", clean, securityPass ? "security" : undefined);
     onDone(`Deposit request of ₹${money(amount)} submitted — status: Pending.`);
   };
 
@@ -43,7 +52,7 @@ export function DepositModal({ onClose, onDone }: { onClose: () => void; onDone:
         onClick={(e) => e.stopPropagation()}
       >
         <div className="flex items-center justify-between">
-          <h2 className="text-lg font-black">Deposit via UPI</h2>
+          <h2 className="text-lg font-black">{securityPass ? "Security Pass Deposit" : "Deposit via UPI"}</h2>
           <button onClick={onClose} aria-label="Close" className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary">
             <X className="h-5 w-5" />
           </button>
@@ -77,7 +86,7 @@ export function DepositModal({ onClose, onDone }: { onClose: () => void; onDone:
                 amount === p ? "bg-gold text-gold-foreground" : "bg-secondary text-secondary-foreground"
               }`}
             >
-              ₹{p >= 1000 ? `${p / 1000}k` : p}
+              ₹{p}
             </button>
           ))}
         </div>
@@ -111,7 +120,9 @@ export function DepositModal({ onClose, onDone }: { onClose: () => void; onDone:
           Submit Deposit Request
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Funds are credited only after the admin verifies your UTR.
+          {securityPass
+            ? "100% Secure System — this ₹150 security pass is added back to your wallet on admin approval."
+            : "Safe & Secure 🔐 — funds are credited once the official server network verifies your UTR."}
         </p>
       </div>
     </div>

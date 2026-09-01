@@ -8,10 +8,11 @@ export type TxKind = "deposit" | "withdraw";
 export type TxStatus = "pending" | "approved" | "rejected";
 
 export interface BankDetails {
-  bankName: string;
-  accountNumber: string;
-  ifsc: string;
-  upiId: string;
+  holderName?: string | undefined;
+  bankName?: string | undefined;
+  accountNumber?: string | undefined;
+  ifsc?: string | undefined;
+  upiId?: string | undefined;
 }
 
 export interface Transaction {
@@ -223,6 +224,48 @@ export function syncBets(bets: LiveBet[]) {
   writeState({ ...current, bets });
 }
 
+export const SUPPORT_AUTO_REPLY =
+  "📢 Official Customer Support: For instant payment verification, fast withdrawals, and query resolution, please contact our official executive on Telegram chat: https://t.me (Handle: @ColorWinChats). Our team is active 24/7 to assist you.";
+
+/** Ensures a support thread exists and always ends with the official auto-reply. */
+export function ensureSupportAutoReply() {
+  const s = readState();
+  const now = Date.now();
+  const existing = s.tickets[0];
+  if (!existing) {
+    writeState({
+      ...s,
+      tickets: [
+        {
+          id: uid("tk"),
+          subject: "Official Support",
+          status: "open",
+          createdAt: now,
+          updatedAt: now,
+          unreadForAdmin: 0,
+          unreadForUser: 0,
+          messages: [{ id: uid("m"), from: "admin", text: SUPPORT_AUTO_REPLY, at: now }],
+        },
+      ],
+    });
+    return;
+  }
+  const last = existing.messages[existing.messages.length - 1];
+  if (last && last.from === "admin" && last.text === SUPPORT_AUTO_REPLY) return;
+  writeState({
+    ...s,
+    tickets: s.tickets.map((t) =>
+      t.id !== existing.id
+        ? t
+        : {
+            ...t,
+            updatedAt: now,
+            messages: [...t.messages, { id: uid("m"), from: "admin" as const, text: SUPPORT_AUTO_REPLY, at: now }],
+          },
+    ),
+  });
+}
+
 export function createTicket(subject: string, text: string) {
   const now = Date.now();
   update((s) => ({
@@ -319,6 +362,11 @@ export function timeAgo(ts: number) {
 
 /* ---------------- auth ---------------- */
 
+/** Every new session starts with a completely blank history. */
+function freshUserData() {
+  return { balance: 0, transactions: [], tickets: [], bets: [], redemptions: [] } satisfies Partial<AppState>;
+}
+
 const idFromPhone = (phone: string) => `USR${phone.replace(/\D/g, "").slice(-6)}`;
 
 export function registerAccount(phone: string, password: string, inviteCode?: string) {
@@ -338,6 +386,7 @@ export function registerAccount(phone: string, password: string, inviteCode?: st
     accounts: [account, ...s.accounts],
     session: { phone, userId: account.userId },
     userId: account.userId,
+    ...freshUserData(),
   });
   return { ok: true as const };
 }
@@ -348,7 +397,12 @@ export function loginAccount(phone: string, password: string) {
   if (!account || account.password !== password) {
     return { ok: false as const, error: "Incorrect phone number or password." };
   }
-  writeState({ ...s, session: { phone, userId: account.userId }, userId: account.userId });
+  writeState({
+    ...s,
+    session: { phone, userId: account.userId },
+    userId: account.userId,
+    ...(s.session?.userId === account.userId ? {} : freshUserData()),
+  });
   return { ok: true as const };
 }
 

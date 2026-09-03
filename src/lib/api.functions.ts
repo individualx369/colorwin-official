@@ -157,7 +157,7 @@ export const fetchSnapshot = createServerFn({ method: "POST" })
         : Promise.resolve({ data: profile ? [profile] : [] }),
     ]);
 
-    const ticketRows = (tickets.data ?? []) as TicketRow[];
+    const ticketRows = (tickets.data ?? []) as unknown as TicketRow[];
     let messages: any[] = [];
     if (ticketRows.length) {
       const { data } = await db
@@ -236,9 +236,9 @@ export const submitDeposit = createServerFn({ method: "POST" })
     const { data: settled } = await db.rpc("settle_transaction", {
       _tx_id: tx.id,
       _status: result.ok ? "approved" : "rejected",
-      _note: null,
+      _note: undefined,
       _provider: result.provider,
-      _ref: result.ref ?? null,
+      _ref: result.ref ?? undefined,
       _message: result.message,
     });
 
@@ -272,9 +272,9 @@ export const submitWithdraw = createServerFn({ method: "POST" })
     const { data: settled } = await db.rpc("settle_transaction", {
       _tx_id: tx.id,
       _status: result.ok ? "approved" : "rejected",
-      _note: null,
+      _note: undefined,
       _provider: result.provider,
-      _ref: result.ref ?? null,
+      _ref: result.ref ?? undefined,
       _message: result.message,
     });
 
@@ -296,7 +296,7 @@ export const openSupport = createServerFn({ method: "POST" })
       .order("updated_at", { ascending: false })
       .limit(1);
 
-    let ticket = existing?.[0];
+    let ticket: any = existing?.[0] ?? null;
     if (!ticket) {
       const created = await db
         .from("support_tickets")
@@ -345,7 +345,7 @@ export const sendSupportMessage = createServerFn({ method: "POST" })
         .insert({ profile_id: profile.id, subject: data.subject || "General help" })
         .select()
         .single();
-      ticketId = created.data.id as string;
+      ticketId = created.data!.id as string;
     }
 
     await db.from("ticket_messages").insert({ ticket_id: ticketId, sender: "user", body: data.text });
@@ -443,9 +443,9 @@ export const adminSettle = createServerFn({ method: "POST" })
       _tx_id: data.txId,
       _status: data.status,
       _note: data.note ?? "Manual staff override",
-      _provider: null,
-      _ref: null,
-      _message: null,
+      _provider: undefined,
+      _ref: undefined,
+      _message: undefined,
     });
     if (error) throw new Error(error.message);
     return { ok: true };

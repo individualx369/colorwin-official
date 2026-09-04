@@ -23,7 +23,7 @@ import {
   logout,
   money as fmt,
   timeAgo,
-} from "@/lib/mock-store";
+} from "@/lib/store";
 import { DepositModal } from "@/components/DepositModal";
 import { WithdrawModal } from "@/components/WithdrawModal";
 import { SupportChat } from "@/components/SupportChat";
@@ -288,7 +288,7 @@ function Index() {
     if (!securityDone) return setLock("security");
     setWalletModal("withdraw");
   };
-  const pendingTx = transactions.filter((t) => t.status === "pending");
+  const pendingTx = transactions.filter((t) => t.status === "pending" || t.status === "processing");
 
   return (
     <div className="mx-auto flex min-h-screen max-w-md flex-col bg-background pb-24 text-foreground">

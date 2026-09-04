@@ -236,11 +236,10 @@ export const submitDeposit = createServerFn({ method: "POST" })
     const { data: settled } = await db.rpc("settle_transaction", {
       _tx_id: tx.id,
       _status: result.ok ? "approved" : "rejected",
-      _note: undefined,
       _provider: result.provider,
-      _ref: result.ref ?? undefined,
+      _ref: result.ref ?? "",
       _message: result.message,
-    });
+    } as never);
 
     return { ok: result.ok, message: result.message, transaction: settled ?? tx };
   });
@@ -272,11 +271,10 @@ export const submitWithdraw = createServerFn({ method: "POST" })
     const { data: settled } = await db.rpc("settle_transaction", {
       _tx_id: tx.id,
       _status: result.ok ? "approved" : "rejected",
-      _note: undefined,
       _provider: result.provider,
-      _ref: result.ref ?? undefined,
+      _ref: result.ref ?? "",
       _message: result.message,
-    });
+    } as never);
 
     return { ok: result.ok, message: result.message, transaction: settled ?? tx };
   });
@@ -443,10 +441,7 @@ export const adminSettle = createServerFn({ method: "POST" })
       _tx_id: data.txId,
       _status: data.status,
       _note: data.note ?? "Manual staff override",
-      _provider: undefined,
-      _ref: undefined,
-      _message: undefined,
-    });
+    } as never);
     if (error) throw new Error(error.message);
     return { ok: true };
   });

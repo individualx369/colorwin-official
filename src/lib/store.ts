@@ -401,6 +401,14 @@ export async function loginAccount(phone: string, password: string) {
   return { ok: true as const };
 }
 
+export async function loginWithEmail(email: string, password: string) {
+  const { error } = await supabase.auth.signInWithPassword({ email: email.trim(), password });
+  if (error) return { ok: false as const, error: "Incorrect email or password." };
+  cache = null;
+  refresh();
+  return { ok: true as const };
+}
+
 export async function logout() {
   await supabase.auth.signOut();
   cache = null;

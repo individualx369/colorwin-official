@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate } from "@tanstack/react-router";
 import { useState } from "react";
 import { ArrowLeft, Gift, RefreshCw, Send, MessageCircle, History } from "lucide-react";
 import { toast } from "sonner";
-import { money, redeemGiftCode, timeAgo, useAppState } from "@/lib/mock-store";
+import { money, redeemGiftCode, timeAgo, useAppState } from "@/lib/store";
 
 export const Route = createFileRoute("/gift")({
   head: () => ({
@@ -37,7 +37,7 @@ function GiftPage() {
   const userId = app?.session?.userId ?? app?.userId;
   const history = (app?.redemptions ?? []).filter((r) => r.userId === userId);
 
-  const receive = () => {
+  const receive = async () => {
     if (!code.trim()) {
       toast.error("Please enter gift code");
       return;
@@ -48,7 +48,7 @@ function GiftPage() {
       setAnswer("");
       return;
     }
-    const res = redeemGiftCode(code);
+    const res = await redeemGiftCode(code);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -115,7 +115,7 @@ function GiftPage() {
           </div>
 
           <button
-            onClick={receive}
+            onClick={() => void receive()}
             className="mt-4 w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95"
           >
             Receive

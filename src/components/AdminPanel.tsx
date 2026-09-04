@@ -10,7 +10,7 @@ import {
   createGiftCode,
   toggleGiftCode,
   type AppState,
-} from "@/lib/mock-store";
+} from "@/lib/store";
 
 type AdminTab = "deposits" | "withdrawals" | "bets" | "tickets" | "gifts";
 
@@ -27,8 +27,8 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
 
   const deposits = state.transactions.filter((t) => t.kind === "deposit");
   const withdrawals = state.transactions.filter((t) => t.kind === "withdraw");
-  const pendingDeposits = deposits.filter((t) => t.status === "pending").length;
-  const pendingWithdrawals = withdrawals.filter((t) => t.status === "pending").length;
+  const pendingDeposits = deposits.filter((t) => t.status === "pending" || t.status === "processing").length;
+  const pendingWithdrawals = withdrawals.filter((t) => t.status === "pending" || t.status === "processing").length;
   const unreadTickets = state.tickets.reduce((n, t) => n + t.unreadForAdmin, 0);
 
   const badge = (n: number) => (n > 0 ? ` (${n})` : "");
@@ -40,7 +40,7 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
           <ShieldCheck className="h-5 w-5 text-gold" />
           <span className="font-black">Admin Panel</span>
           <span className="rounded-full border border-border px-2 py-0.5 text-[10px] text-muted-foreground">
-            test mode
+            live
           </span>
         </div>
         <button onClick={onClose} aria-label="Close admin panel" className="rounded-full p-1.5 text-muted-foreground hover:bg-secondary">
@@ -72,7 +72,7 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
               <div key={t.id} className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-mono text-xs text-muted-foreground">User {t.userId}</p>
+                    <p className="text-xs text-muted-foreground">{t.userLabel}</p>
                     <p className="text-xl font-black">₹{money(t.amount)}</p>
                     <p className="mt-1 font-mono text-xs">UTR: {t.utr ?? "—"}</p>
                     <p className="text-[11px] text-muted-foreground">
@@ -81,16 +81,16 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
                   </div>
                   <StatusPill status={t.status} />
                 </div>
-                {t.status === "pending" && (
+                {(t.status === "pending" || t.status === "processing") && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => resolveTransaction(t.id, "approved", "UTR verified")}
+                      onClick={() => void resolveTransaction(t.id, "approved", "UTR verified")}
                       className="rounded-xl bg-game-green py-2.5 text-xs font-black uppercase tracking-wider text-white active:scale-95"
                     >
                       Approve
                     </button>
                     <button
-                      onClick={() => resolveTransaction(t.id, "rejected", "UTR not found")}
+                      onClick={() => void resolveTransaction(t.id, "rejected", "UTR not found")}
                       className="rounded-xl bg-game-red py-2.5 text-xs font-black uppercase tracking-wider text-white active:scale-95"
                     >
                       Reject
@@ -108,7 +108,7 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
               <div key={t.id} className="rounded-2xl border border-border bg-card p-4">
                 <div className="flex items-start justify-between gap-3">
                   <div className="min-w-0">
-                    <p className="font-mono text-xs text-muted-foreground">User {t.userId}</p>
+                    <p className="text-xs text-muted-foreground">{t.userLabel}</p>
                     <p className="text-xl font-black">₹{money(t.amount)}</p>
                   </div>
                   <StatusPill status={t.status} />
@@ -121,16 +121,16 @@ export function AdminPanel({ state, onClose }: { state: AppState; onClose: () =>
                   <Row label="UPI ID" value={t.bank?.upiId ?? "—"} />
                   <Row label="Requested" value={timeAgo(t.createdAt)} />
                 </dl>
-                {t.status === "pending" && (
+                {(t.status === "pending" || t.status === "processing") && (
                   <div className="mt-3 grid grid-cols-2 gap-2">
                     <button
-                      onClick={() => resolveTransaction(t.id, "approved", "Paid manually")}
+                      onClick={() => void resolveTransaction(t.id, "approved", "Paid manually")}
                       className="rounded-xl bg-game-green py-2.5 text-xs font-black uppercase tracking-wider text-white active:scale-95"
                     >
                       Approve / Paid
                     </button>
                     <button
-                      onClick={() => resolveTransaction(t.id, "rejected", "Refunded to wallet")}
+                      onClick={() => void resolveTransaction(t.id, "rejected", "Refunded to wallet")}
                       className="rounded-xl bg-game-red py-2.5 text-xs font-black uppercase tracking-wider text-white active:scale-95"
                     >
                       Reject &amp; Refund
@@ -203,8 +203,8 @@ function GiftManager({ state }: { state: AppState }) {
   const [code, setCode] = useState("");
   const [amount, setAmount] = useState("50");
 
-  const create = () => {
-    const res = createGiftCode(code, Number(amount));
+  const create = async () => {
+    const res = await createGiftCode(code, Number(amount));
     if (!res.ok) return;
     setCode("");
     setAmount("50");
@@ -231,7 +231,7 @@ function GiftManager({ state }: { state: AppState }) {
             className="w-20 rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none"
           />
           <button
-            onClick={create}
+            onClick={() => void create()}
             className="shrink-0 rounded-xl bg-gold px-4 text-xs font-black uppercase text-gold-foreground active:scale-95"
           >
             Add
@@ -249,7 +249,7 @@ function GiftManager({ state }: { state: AppState }) {
               </p>
             </div>
             <button
-              onClick={() => toggleGiftCode(g.code)}
+              onClick={() => void toggleGiftCode(g.code)}
               className={`shrink-0 rounded-full border px-2.5 py-1 text-[10px] font-black uppercase ${
                 g.active
                   ? "border-game-green/40 bg-game-green/10 text-game-green"
@@ -263,9 +263,9 @@ function GiftManager({ state }: { state: AppState }) {
             <ul className="mt-3 space-y-1 rounded-xl bg-secondary/50 p-2 text-[11px]">
               {g.claims.map((c) => (
                 <li key={`${c.userId}-${c.at}`} className="flex justify-between gap-3">
-                  <span className="font-mono">{c.userId}</span>
+                  <span className="font-mono">+91 {c.phone}</span>
                   <span className="text-muted-foreground">
-                    {c.phone} · {timeAgo(c.at)}
+                    {timeAgo(c.at)}
                   </span>
                 </li>
               ))}
@@ -283,7 +283,7 @@ function AdminTicket({ ticket }: { ticket: AppState["tickets"][number] }) {
   const send = () => {
     const msg = reply.trim().slice(0, 1000);
     if (!msg) return;
-    postMessage(ticket.id, "admin", msg);
+    void postMessage(ticket.id, "admin", msg);
     setReply("");
   };
 
@@ -292,12 +292,12 @@ function AdminTicket({ ticket }: { ticket: AppState["tickets"][number] }) {
       <div className="flex items-start justify-between gap-2">
         <div className="min-w-0">
           <p className="truncate font-bold">{ticket.subject}</p>
-          <p className="font-mono text-[11px] text-muted-foreground">
-            {ticket.id} · updated {timeAgo(ticket.updatedAt)}
+          <p className="text-[11px] text-muted-foreground">
+            {ticket.userLabel} · updated {timeAgo(ticket.updatedAt)}
           </p>
         </div>
         <button
-          onClick={() => setTicketStatus(ticket.id, ticket.status === "open" ? "closed" : "open")}
+          onClick={() => void setTicketStatus(ticket.id, ticket.status === "open" ? "closed" : "open")}
           className="shrink-0 rounded-full border border-border px-2.5 py-1 text-[10px] font-bold uppercase text-muted-foreground"
         >
           {ticket.status}
@@ -325,7 +325,7 @@ function AdminTicket({ ticket }: { ticket: AppState["tickets"][number] }) {
         <textarea
           rows={1}
           value={reply}
-          onFocus={() => ticket.unreadForAdmin > 0 && markTicketRead(ticket.id, "admin")}
+          onFocus={() => { if (ticket.unreadForAdmin > 0) void markTicketRead(ticket.id, "admin"); }}
           onChange={(e) => setReply(e.target.value.slice(0, 1000))}
           placeholder="Type a reply to this user…"
           className="max-h-28 flex-1 resize-none rounded-xl border border-input bg-background px-3 py-2 text-sm outline-none focus:ring-2 focus:ring-ring"
@@ -359,9 +359,9 @@ function Row({ label, value }: { label: string; value: string }) {
   );
 }
 
-function StatusPill({ status }: { status: "pending" | "approved" | "rejected" }) {
+function StatusPill({ status }: { status: "pending" | "processing" | "approved" | "rejected" }) {
   const cls =
-    status === "pending"
+    status === "pending" || status === "processing"
       ? "border-gold/40 bg-gold/10 text-gold"
       : status === "approved"
         ? "border-game-green/40 bg-game-green/10 text-game-green"

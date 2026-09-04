@@ -2,7 +2,7 @@ import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router"
 import { useState } from "react";
 import { Phone, Lock, Mail, Eye, EyeOff, ShieldCheck, Gift, ArrowLeft } from "lucide-react";
 import { toast } from "sonner";
-import { loginAccount, registerAccount, useAppState } from "@/lib/mock-store";
+import { loginAccount, loginWithEmail, registerAccount, useAppState } from "@/lib/store";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -99,13 +99,19 @@ function LoginForm({
   const [show, setShow] = useState(false);
   const [remember, setRemember] = useState(true);
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
     const identity = tab === "phone" ? phone.replace(/\D/g, "") : email.trim();
     if (!identity || !password) {
       toast.error("Please fill in all fields.");
       return;
     }
-    const res = loginAccount(identity, password);
+    setBusy(true);
+    const res = tab === "phone"
+      ? await loginAccount(identity, password)
+      : await loginWithEmail(identity, password);
+    setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -188,10 +194,11 @@ function LoginForm({
         </div>
 
         <button
-          onClick={submit}
-          className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95"
+          onClick={() => void submit()}
+          disabled={busy}
+          className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95 disabled:opacity-60"
         >
-          Log in
+          {busy ? "Logging in…" : "Log in"}
         </button>
         <button
           onClick={onRegister}
@@ -229,7 +236,9 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
     toast.success(`SMS code sent: ${code}`);
   };
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
     const error =
       phone.length !== 10
         ? "Enter a valid 10-digit phone number."
@@ -246,7 +255,9 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
       toast.error(error);
       return;
     }
-    const res = registerAccount(phone, password, invite.trim() || undefined);
+    setBusy(true);
+    const res = await registerAccount(phone, password, invite.trim() ? `Player ${invite.trim()}` : undefined);
+    setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
       return;
@@ -338,10 +349,11 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
       </label>
 
       <button
-        onClick={submit}
-        className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95"
+        onClick={() => void submit()}
+        disabled={busy}
+        className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95 disabled:opacity-60"
       >
-        Register
+        {busy ? "Creating account…" : "Register"}
       </button>
       <button
         onClick={onLogin}

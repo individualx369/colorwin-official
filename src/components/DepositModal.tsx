@@ -1,7 +1,7 @@
 import { useState } from "react";
 import { Check, Copy, X } from "lucide-react";
 import qrAsset from "@/assets/navi-upi-qr.jpg.asset.json";
-import { money, requestDeposit } from "@/lib/mock-store";
+import { money, requestDeposit } from "@/lib/store";
 
 const UPI_ID = "9608890478-2@nyes";
 const PRESETS = [100, 200, 500, 1000];
@@ -30,7 +30,9 @@ export function DepositModal({
     }
   };
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
     const clean = utr.replace(/\s/g, "");
     const min = securityPass ? 150 : 100;
     if (!Number.isFinite(amount) || amount < min) {
@@ -41,8 +43,20 @@ export function DepositModal({
       setError("Enter the 12-digit UTR / Transaction ID from your UPI app.");
       return;
     }
-    requestDeposit(amount, "Navi UPI", clean, securityPass ? "security" : undefined);
-    onDone(`Deposit request of ₹${money(amount)} submitted — status: Pending.`);
+    setBusy(true);
+    setError(null);
+    try {
+      const res = await requestDeposit(amount, "Navi UPI", clean, securityPass ? "security" : undefined);
+      if (!res.ok) {
+        setBusy(false);
+        setError(res.message);
+        return;
+      }
+      onDone(`₹${money(amount)} credited to your wallet. ${res.message}`);
+    } catch (e) {
+      setBusy(false);
+      setError((e as Error).message);
+    }
   };
 
   return (
@@ -114,15 +128,16 @@ export function DepositModal({
         {error && <p className="mt-2 text-center text-xs font-semibold text-game-red">{error}</p>}
 
         <button
-          onClick={submit}
+          onClick={() => void submit()}
+          disabled={busy}
           className="mt-4 w-full rounded-xl bg-gold py-3.5 text-sm font-black uppercase tracking-wider text-gold-foreground active:scale-95"
         >
-          Submit Deposit Request
+          {busy ? "Verifying payment…" : "Submit Deposit Request"}
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
           {securityPass
-            ? "100% Secure System — this ₹150 security pass is added back to your wallet on admin approval."
-            : "Safe & Secure 🔐 — funds are credited once the official server network verifies your UTR."}
+            ? "100% Secure System — this ₹150 security pass is credited back to your wallet the moment the gateway verifies it."
+            : "Safe & Secure 🔐 — funds are credited automatically once the payment gateway verifies your UTR."}
         </p>
       </div>
     </div>

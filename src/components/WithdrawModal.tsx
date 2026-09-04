@@ -1,6 +1,6 @@
 import { useState } from "react";
 import { Building2, Smartphone, X } from "lucide-react";
-import { money, requestWithdraw, type BankDetails } from "@/lib/mock-store";
+import { money, requestWithdraw, type BankDetails } from "@/lib/store";
 
 type Channel = "upi" | "bank";
 
@@ -27,7 +27,9 @@ export function WithdrawModal({
   const set = (k: keyof typeof form) => (e: React.ChangeEvent<HTMLInputElement>) =>
     setForm((f) => ({ ...f, [k]: e.target.value.slice(0, 60) }));
 
-  const submit = () => {
+  const [busy, setBusy] = useState(false);
+
+  const submit = async () => {
     setError(null);
     const holderName = form.holderName.trim();
     if (holderName.length < 2) return setError("Enter the full registered name.");
@@ -54,8 +56,18 @@ export function WithdrawModal({
     if (!Number.isFinite(amount) || amount < 200) return setError("Minimum withdrawal is ₹200.");
     if (amount > balance) return setError("Amount exceeds your wallet balance.");
 
-    requestWithdraw(amount, bank, method);
-    onDone(`Withdrawal request of ₹${money(amount)} submitted — status: Pending.`);
+    setBusy(true);
+    try {
+      const res = await requestWithdraw(amount, bank, method);
+      onDone(
+        res.ok
+          ? `₹${money(amount)} paid out to your ${channel === "upi" ? "UPI wallet" : "bank account"}. ${res.message}`
+          : `Payout failed: ${res.message} — the amount was returned to your wallet.`,
+      );
+    } catch (e) {
+      setBusy(false);
+      setError((e as Error).message);
+    }
   };
 
   const field =
@@ -141,13 +153,14 @@ export function WithdrawModal({
         {error && <p className="mt-3 text-center text-xs font-semibold text-game-red">{error}</p>}
 
         <button
-          onClick={submit}
+          onClick={() => void submit()}
+          disabled={busy}
           className="mt-4 w-full rounded-xl bg-gold py-3.5 text-sm font-black uppercase tracking-wider text-gold-foreground active:scale-95"
         >
-          Submit Withdrawal Request
+          {busy ? "Processing payout…" : "Submit Withdrawal Request"}
         </button>
         <p className="mt-2 text-center text-[11px] text-muted-foreground">
-          Safe &amp; Secure 🔐 — amount is locked until the admin marks the payout as paid.
+          Safe &amp; Secure 🔐 — payouts are processed instantly by the official payment gateway.
         </p>
       </div>
     </div>

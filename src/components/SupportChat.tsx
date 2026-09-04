@@ -1,6 +1,6 @@
 import { useEffect, useRef, useState } from "react";
 import { Send, X, LifeBuoy } from "lucide-react";
-import { createTicket, ensureSupportAutoReply, markTicketRead, postMessage, SUPPORT_AUTO_REPLY, timeAgo, type Ticket } from "@/lib/store";
+import { createTicket, ensureSupportAutoReply, markTicketRead, postMessage, timeAgo, type Ticket } from "@/lib/store";
 
 export function SupportChat({ tickets, onClose }: { tickets: Ticket[]; onClose: () => void }) {
   const [activeId, setActiveId] = useState<string | null>(tickets[0]?.id ?? null);

@@ -36,9 +36,10 @@ function AdminLoginPage() {
 
   const finish = async () => {
     try {
-      await claimAdminRole();
+      const res = await claimAdminRole();
       refresh();
-      toast.success("Welcome back, administrator");
+      if (res.ok) toast.success("Welcome back, administrator");
+      else toast.error("This account is not an administrator. Sign in with the staff account.");
     } catch (error) {
       toast.error((error as Error).message);
     }

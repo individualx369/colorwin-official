@@ -1,8 +1,16 @@
 import { createFileRoute, useNavigate, useRouter } from "@tanstack/react-router";
 import { useState } from "react";
-import { Phone, Lock, Mail, Eye, EyeOff, ShieldCheck, Gift, ArrowLeft } from "lucide-react";
+import { Phone, Lock, Eye, EyeOff, ShieldCheck, Gift, ArrowLeft, KeyRound } from "lucide-react";
 import { toast } from "sonner";
-import { loginAccount, loginWithEmail, registerAccount, useAppState } from "@/lib/store";
+import {
+  loginAccount,
+  resendSignupOtp,
+  setNewPassword,
+  startPasswordReset,
+  startRegistration,
+  verifyPasswordResetOtp,
+  verifyRegistration,
+} from "@/lib/store";
 
 export const Route = createFileRoute("/login")({
   head: () => ({
@@ -11,7 +19,7 @@ export const Route = createFileRoute("/login")({
       {
         name: "description",
         content:
-          "Log in to ColorWin with your phone number or email, or register a new account with an invite code to start playing.",
+          "Log in to ColorWin with your mobile number and password, or register a new account verified by a one-time SMS code.",
       },
       { property: "og:title", content: "Log in or Register — ColorWin" },
       { property: "og:description", content: "Access your ColorWin wallet, bets and rewards." },
@@ -22,11 +30,9 @@ export const Route = createFileRoute("/login")({
   component: LoginPage,
 });
 
-type Screen = "login" | "register";
-type LoginTab = "phone" | "email";
+type Screen = "login" | "register" | "forgot";
 
 function LoginPage() {
-  const app = useAppState();
   const navigate = useNavigate();
   const router = useRouter();
   const [screen, setScreen] = useState<Screen>("login");
@@ -36,6 +42,15 @@ function LoginPage() {
     router.invalidate();
     void navigate({ to: "/" });
   };
+
+  const heading =
+    screen === "login" ? "Log in" : screen === "register" ? "Register" : "Reset password";
+  const subtitle =
+    screen === "login"
+      ? "Log in with your mobile number and password"
+      : screen === "register"
+        ? "Register with your mobile number — we send a one-time code"
+        : "Verify your mobile number to set a new password";
 
   return (
     <div className="theme-light mx-auto min-h-screen max-w-md bg-background pb-10 text-foreground">
@@ -51,27 +66,23 @@ function LoginPage() {
           <span className="text-xl font-black tracking-tight">ColorWin</span>
           <Gift className="h-5 w-5 opacity-80" />
         </div>
-        <h1 className="mt-6 text-2xl font-black">
-          {screen === "login" ? "Log in" : "Register"}
-        </h1>
-        <p className="mt-1 text-sm opacity-90">
-          {screen === "login"
-            ? "Please log in with your phone number or email"
-            : "Please register with your phone number to continue"}
-        </p>
+        <h1 className="mt-6 text-2xl font-black">{heading}</h1>
+        <p className="mt-1 text-sm opacity-90">{subtitle}</p>
       </header>
 
       <div className="-mt-6 px-4">
         <div className="rounded-2xl bg-card p-5 shadow-xl">
-          {screen === "login" ? (
+          {screen === "login" && (
             <LoginForm
               onDone={done}
               onRegister={() => setScreen("register")}
-              hasAccounts={(app?.accounts.length ?? 0) > 0}
+              onForgot={() => setScreen("forgot")}
             />
-          ) : (
+          )}
+          {screen === "register" && (
             <RegisterForm onDone={done} onLogin={() => setScreen("login")} />
           )}
+          {screen === "forgot" && <ForgotForm onDone={done} onLogin={() => setScreen("login")} />}
         </div>
 
         <p className="mt-4 flex items-center justify-center gap-1.5 text-center text-[11px] text-muted-foreground">
@@ -83,34 +94,29 @@ function LoginPage() {
   );
 }
 
+/* ------------------------------------------------------------------ login */
+
 function LoginForm({
   onDone,
   onRegister,
-  hasAccounts,
+  onForgot,
 }: {
   onDone: (msg: string) => void;
   onRegister: () => void;
-  hasAccounts: boolean;
+  onForgot: () => void;
 }) {
-  const [tab, setTab] = useState<LoginTab>("phone");
   const [phone, setPhone] = useState("");
-  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [show, setShow] = useState(false);
-  const [remember, setRemember] = useState(true);
-
   const [busy, setBusy] = useState(false);
 
   const submit = async () => {
-    const identity = tab === "phone" ? phone.replace(/\D/g, "") : email.trim();
-    if (!identity || !password) {
-      toast.error("Please fill in all fields.");
+    if (phone.length !== 10 || !password) {
+      toast.error("Enter your 10-digit mobile number and password.");
       return;
     }
     setBusy(true);
-    const res = tab === "phone"
-      ? await loginAccount(identity, password)
-      : await loginWithEmail(identity, password);
+    const res = await loginAccount(phone, password);
     setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
@@ -120,143 +126,89 @@ function LoginForm({
   };
 
   return (
-    <>
-      <div className="flex gap-2">
-        <TabButton active={tab === "phone"} onClick={() => setTab("phone")} icon={<Phone className="h-4 w-4" />}>
-          Log in with phone
-        </TabButton>
-        <TabButton active={tab === "email"} onClick={() => setTab("email")} icon={<Mail className="h-4 w-4" />}>
-          Email login
-        </TabButton>
-      </div>
+    <div className="space-y-4">
+      <PhoneField value={phone} onChange={setPhone} />
 
-      <div className="mt-5 space-y-4">
-        {tab === "phone" ? (
-          <Field label="Phone number" icon={<Phone className="h-4 w-4 text-brand" />}>
-            <div className="flex items-center gap-2">
-              <span className="shrink-0 rounded-lg bg-secondary px-2.5 py-2 text-sm font-bold">+91</span>
-              <input
-                value={phone}
-                onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-                inputMode="numeric"
-                placeholder="Please enter the phone number"
-                className="w-full bg-transparent py-2 text-sm outline-none"
-              />
-            </div>
-          </Field>
-        ) : (
-          <Field label="Email" icon={<Mail className="h-4 w-4 text-brand" />}>
-            <input
-              value={email}
-              onChange={(e) => setEmail(e.target.value)}
-              type="email"
-              placeholder="Please enter the email"
-              className="w-full bg-transparent py-2 text-sm outline-none"
-            />
-          </Field>
-        )}
-
-        <Field label="Password" icon={<Lock className="h-4 w-4 text-brand" />}>
-          <div className="flex items-center gap-2">
-            <input
-              value={password}
-              onChange={(e) => setPassword(e.target.value)}
-              type={show ? "text" : "password"}
-              placeholder="Please enter the password"
-              className="w-full bg-transparent py-2 text-sm outline-none"
-            />
-            <button onClick={() => setShow((v) => !v)} aria-label="Toggle password visibility">
-              {show ? (
-                <EyeOff className="h-4 w-4 text-muted-foreground" />
-              ) : (
-                <Eye className="h-4 w-4 text-muted-foreground" />
-              )}
-            </button>
-          </div>
-        </Field>
-
-        <div className="flex items-center justify-between text-xs">
-          <label className="flex items-center gap-2 font-semibold text-muted-foreground">
-            <input
-              type="checkbox"
-              checked={remember}
-              onChange={(e) => setRemember(e.target.checked)}
-              className="h-4 w-4 accent-[var(--brand)]"
-            />
-            Remember password
-          </label>
-          <button
-            onClick={() => toast.info("Please contact customer support to reset your password.")}
-            className="font-semibold text-brand"
-          >
-            Forgot password?
+      <Field label="Password" icon={<Lock className="h-4 w-4 text-brand" />}>
+        <div className="flex items-center gap-2">
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type={show ? "text" : "password"}
+            onKeyDown={(e) => e.key === "Enter" && void submit()}
+            placeholder="Please enter the password"
+            className="w-full bg-transparent py-2 text-sm outline-none"
+          />
+          <button onClick={() => setShow((v) => !v)} aria-label="Toggle password visibility">
+            {show ? (
+              <EyeOff className="h-4 w-4 text-muted-foreground" />
+            ) : (
+              <Eye className="h-4 w-4 text-muted-foreground" />
+            )}
           </button>
         </div>
+      </Field>
 
-        <button
-          onClick={() => void submit()}
-          disabled={busy}
-          className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95 disabled:opacity-60"
-        >
-          {busy ? "Logging in…" : "Log in"}
+      <div className="flex justify-end text-xs">
+        <button onClick={onForgot} className="font-semibold text-brand">
+          Forgot password?
         </button>
-        <button
-          onClick={onRegister}
-          className="w-full rounded-full border border-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand active:scale-95"
-        >
-          Register
-        </button>
-        {!hasAccounts && (
-          <p className="text-center text-[11px] text-muted-foreground">
-            No account yet? Register first — it takes a few seconds.
-          </p>
-        )}
       </div>
-    </>
+
+      <PrimaryButton onClick={() => void submit()} busy={busy} busyLabel="Logging in…">
+        Log in
+      </PrimaryButton>
+      <SecondaryButton onClick={onRegister}>Register</SecondaryButton>
+    </div>
   );
 }
 
+/* --------------------------------------------------------------- register */
+
 function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLogin: () => void }) {
+  const [step, setStep] = useState<"details" | "otp">("details");
   const [phone, setPhone] = useState("");
   const [password, setPassword] = useState("");
   const [confirm, setConfirm] = useState("");
   const [show, setShow] = useState(false);
-  const [sms, setSms] = useState("");
-  const [sentCode, setSentCode] = useState<string | null>(null);
+  const [otp, setOtp] = useState("");
   const [invite, setInvite] = useState("");
   const [agree, setAgree] = useState(false);
-
-  const sendCode = () => {
-    if (phone.length !== 10) {
-      toast.error("Enter a valid 10-digit phone number first.");
-      return;
-    }
-    const code = String(Math.floor(1000 + Math.random() * 9000));
-    setSentCode(code);
-    toast.success(`SMS code sent: ${code}`);
-  };
-
   const [busy, setBusy] = useState(false);
 
-  const submit = async () => {
+  const sendOtp = async () => {
     const error =
       phone.length !== 10
-        ? "Enter a valid 10-digit phone number."
+        ? "Enter a valid 10-digit mobile number."
         : password.length < 6
           ? "Password must be at least 6 characters."
           : password !== confirm
             ? "Passwords do not match."
-            : !sentCode || sms !== sentCode
-              ? "Invalid SMS verification code."
-              : !agree
-                ? "Please accept the Privacy Agreement."
-                : null;
+            : !agree
+              ? "Please accept the Privacy Agreement."
+              : null;
     if (error) {
       toast.error(error);
       return;
     }
     setBusy(true);
-    const res = await registerAccount(phone, password, invite.trim() ? `Player ${invite.trim()}` : undefined);
+    const res = await startRegistration(phone, password);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    setStep("otp");
+    toast.success(`Verification code sent to +91 ${phone}`);
+  };
+
+  const verify = async () => {
+    if (otp.trim().length < 4) {
+      toast.error("Enter the verification code from the SMS.");
+      return;
+    }
+    setBusy(true);
+    const res = await verifyRegistration(phone, otp, invite.trim() ? `Player ${invite.trim()}` : undefined);
     setBusy(false);
     if (!res.ok) {
       toast.error(res.error);
@@ -265,20 +217,29 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
     onDone("Registered successfully");
   };
 
+  const resend = async () => {
+    const res = await resendSignupOtp(phone);
+    toast[res.ok ? "success" : "error"](res.ok ? "New code sent" : res.error);
+  };
+
+  if (step === "otp") {
+    return (
+      <OtpStep
+        phone={phone}
+        otp={otp}
+        setOtp={setOtp}
+        busy={busy}
+        onVerify={() => void verify()}
+        onResend={() => void resend()}
+        onBack={() => setStep("details")}
+        verifyLabel="Verify & create account"
+      />
+    );
+  }
+
   return (
     <div className="space-y-4">
-      <Field label="Phone number" icon={<Phone className="h-4 w-4 text-brand" />}>
-        <div className="flex items-center gap-2">
-          <span className="shrink-0 rounded-lg bg-secondary px-2.5 py-2 text-sm font-bold">+91</span>
-          <input
-            value={phone}
-            onChange={(e) => setPhone(e.target.value.replace(/\D/g, "").slice(0, 10))}
-            inputMode="numeric"
-            placeholder="Please enter the phone number"
-            className="w-full bg-transparent py-2 text-sm outline-none"
-          />
-        </div>
-      </Field>
+      <PhoneField value={phone} onChange={setPhone} />
 
       <Field label="Set password" icon={<Lock className="h-4 w-4 text-brand" />}>
         <div className="flex items-center gap-2">
@@ -309,24 +270,6 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
         />
       </Field>
 
-      <Field label="SMS verification code" icon={<ShieldCheck className="h-4 w-4 text-brand" />}>
-        <div className="flex items-center gap-2">
-          <input
-            value={sms}
-            onChange={(e) => setSms(e.target.value.replace(/\D/g, "").slice(0, 4))}
-            inputMode="numeric"
-            placeholder="Please enter the code"
-            className="w-full bg-transparent py-2 text-sm outline-none"
-          />
-          <button
-            onClick={sendCode}
-            className="shrink-0 rounded-full bg-brand px-4 py-1.5 text-xs font-black uppercase text-brand-foreground active:scale-95"
-          >
-            Send
-          </button>
-        </div>
-      </Field>
-
       <Field label="Invite code (optional)" icon={<Gift className="h-4 w-4 text-brand" />}>
         <input
           value={invite}
@@ -348,42 +291,220 @@ function RegisterForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLo
         </span>
       </label>
 
-      <button
-        onClick={() => void submit()}
-        disabled={busy}
-        className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95 disabled:opacity-60"
-      >
-        {busy ? "Creating account…" : "Register"}
-      </button>
-      <button
-        onClick={onLogin}
-        className="w-full rounded-full border border-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand active:scale-95"
-      >
-        I have an account · Log in
-      </button>
+      <PrimaryButton onClick={() => void sendOtp()} busy={busy} busyLabel="Sending code…">
+        Send OTP
+      </PrimaryButton>
+      <SecondaryButton onClick={onLogin}>I have an account · Log in</SecondaryButton>
     </div>
   );
 }
 
-function TabButton({
-  active,
+/* ------------------------------------------------------------- forgot flow */
+
+function ForgotForm({ onDone, onLogin }: { onDone: (msg: string) => void; onLogin: () => void }) {
+  const [step, setStep] = useState<"phone" | "otp" | "password">("phone");
+  const [phone, setPhone] = useState("");
+  const [otp, setOtp] = useState("");
+  const [password, setPassword] = useState("");
+  const [confirm, setConfirm] = useState("");
+  const [busy, setBusy] = useState(false);
+
+  const send = async () => {
+    if (phone.length !== 10) {
+      toast.error("Enter your registered 10-digit mobile number.");
+      return;
+    }
+    setBusy(true);
+    const res = await startPasswordReset(phone);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    setStep("otp");
+    toast.success(`Reset code sent to +91 ${phone}`);
+  };
+
+  const verify = async () => {
+    setBusy(true);
+    const res = await verifyPasswordResetOtp(phone, otp);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    setStep("password");
+  };
+
+  const save = async () => {
+    if (password.length < 6 || password !== confirm) {
+      toast.error("Enter matching passwords of at least 6 characters.");
+      return;
+    }
+    setBusy(true);
+    const res = await setNewPassword(phone, password);
+    setBusy(false);
+    if (!res.ok) {
+      toast.error(res.error);
+      return;
+    }
+    onDone("Password updated successfully");
+  };
+
+  if (step === "otp") {
+    return (
+      <OtpStep
+        phone={phone}
+        otp={otp}
+        setOtp={setOtp}
+        busy={busy}
+        onVerify={() => void verify()}
+        onResend={() => void send()}
+        onBack={() => setStep("phone")}
+        verifyLabel="Verify code"
+      />
+    );
+  }
+
+  if (step === "password") {
+    return (
+      <div className="space-y-4">
+        <Field label="New password" icon={<Lock className="h-4 w-4 text-brand" />}>
+          <input
+            value={password}
+            onChange={(e) => setPassword(e.target.value)}
+            type="password"
+            placeholder="New password"
+            className="w-full bg-transparent py-2 text-sm outline-none"
+          />
+        </Field>
+        <Field label="Confirm new password" icon={<Lock className="h-4 w-4 text-brand" />}>
+          <input
+            value={confirm}
+            onChange={(e) => setConfirm(e.target.value)}
+            type="password"
+            placeholder="Confirm new password"
+            className="w-full bg-transparent py-2 text-sm outline-none"
+          />
+        </Field>
+        <PrimaryButton onClick={() => void save()} busy={busy} busyLabel="Saving…">
+          Save new password
+        </PrimaryButton>
+      </div>
+    );
+  }
+
+  return (
+    <div className="space-y-4">
+      <PhoneField value={phone} onChange={setPhone} />
+      <PrimaryButton onClick={() => void send()} busy={busy} busyLabel="Sending code…">
+        Send reset OTP
+      </PrimaryButton>
+      <SecondaryButton onClick={onLogin}>Back to log in</SecondaryButton>
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------- bits */
+
+function OtpStep({
+  phone,
+  otp,
+  setOtp,
+  busy,
+  onVerify,
+  onResend,
+  onBack,
+  verifyLabel,
+}: {
+  phone: string;
+  otp: string;
+  setOtp: (v: string) => void;
+  busy: boolean;
+  onVerify: () => void;
+  onResend: () => void;
+  onBack: () => void;
+  verifyLabel: string;
+}) {
+  return (
+    <div className="space-y-4">
+      <div className="rounded-xl bg-secondary p-3 text-center text-xs font-semibold text-muted-foreground">
+        We sent a one-time verification code by SMS to
+        <span className="ml-1 font-black text-foreground">+91 {phone}</span>
+      </div>
+
+      <Field label="Verification code" icon={<KeyRound className="h-4 w-4 text-brand" />}>
+        <input
+          value={otp}
+          onChange={(e) => setOtp(e.target.value.replace(/\D/g, "").slice(0, 8))}
+          inputMode="numeric"
+          autoComplete="one-time-code"
+          placeholder="Enter the code"
+          className="w-full bg-transparent py-2 text-center text-lg font-black tracking-[0.5em] outline-none"
+        />
+      </Field>
+
+      <PrimaryButton onClick={onVerify} busy={busy} busyLabel="Verifying…">
+        {verifyLabel}
+      </PrimaryButton>
+      <div className="flex items-center justify-between text-xs font-semibold">
+        <button onClick={onBack} className="text-muted-foreground">
+          Change number
+        </button>
+        <button onClick={onResend} className="text-brand">
+          Resend code
+        </button>
+      </div>
+    </div>
+  );
+}
+
+function PhoneField({ value, onChange }: { value: string; onChange: (v: string) => void }) {
+  return (
+    <Field label="Mobile number" icon={<Phone className="h-4 w-4 text-brand" />}>
+      <div className="flex items-center gap-2">
+        <span className="shrink-0 rounded-lg bg-secondary px-2.5 py-2 text-sm font-bold">+91</span>
+        <input
+          value={value}
+          onChange={(e) => onChange(e.target.value.replace(/\D/g, "").slice(0, 10))}
+          inputMode="numeric"
+          autoComplete="tel"
+          placeholder="Please enter the mobile number"
+          className="w-full bg-transparent py-2 text-sm outline-none"
+        />
+      </div>
+    </Field>
+  );
+}
+
+function PrimaryButton({
   onClick,
-  icon,
+  busy,
+  busyLabel,
   children,
 }: {
-  active: boolean;
   onClick: () => void;
-  icon: React.ReactNode;
+  busy: boolean;
+  busyLabel: string;
   children: React.ReactNode;
 }) {
   return (
     <button
       onClick={onClick}
-      className={`flex flex-1 items-center justify-center gap-1.5 rounded-full px-3 py-2 text-[11px] font-black ${
-        active ? "bg-brand text-brand-foreground" : "bg-secondary text-muted-foreground"
-      }`}
+      disabled={busy}
+      className="w-full rounded-full bg-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand-foreground active:scale-95 disabled:opacity-60"
     >
-      {icon}
+      {busy ? busyLabel : children}
+    </button>
+  );
+}
+
+function SecondaryButton({ onClick, children }: { onClick: () => void; children: React.ReactNode }) {
+  return (
+    <button
+      onClick={onClick}
+      className="w-full rounded-full border border-brand py-3.5 text-sm font-black uppercase tracking-wider text-brand active:scale-95"
+    >
       {children}
     </button>
   );

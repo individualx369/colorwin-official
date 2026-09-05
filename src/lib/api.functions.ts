@@ -422,7 +422,7 @@ export const claimAdminRole = createServerFn({ method: "POST" })
         .eq("role", "admin")
         .maybeSingle();
       if (mine.data) return { ok: true, created: false };
-      throw new Error("An administrator account already exists.");
+      return { ok: false, created: false, reason: "exists" as const };
     }
     const { error } = await db
       .from("user_roles")

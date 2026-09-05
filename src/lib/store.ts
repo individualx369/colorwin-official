@@ -360,23 +360,40 @@ export function timeAgo(ts: number) {
 
 /* ------------------------------------------------------------------ auth */
 
-export async function registerAccount(phone: string, password: string, displayName?: string) {
-  const email = emailForPhone(phone);
+/** Normalises a 10-digit Indian mobile number to E.164 (+91XXXXXXXXXX). */
+export const toE164 = (phone: string) => `+91${phone.replace(/\D/g, "").slice(-10)}`;
+
+const authError = (message: string) =>
+  /already registered|already exists/i.test(message)
+    ? "This mobile number is already registered. Please log in instead."
+    : /Invalid login/i.test(message)
+      ? "Incorrect mobile number or password."
+      : /token|otp|expired/i.test(message)
+        ? "That verification code is invalid or has expired."
+        : message;
+
+/** Step 1 of registration: create the account and send an SMS verification code. */
+export async function startRegistration(phone: string, password: string) {
   const { error } = await supabase.auth.signUp({
-    email,
+    phone: toE164(phone),
     password,
-    options: { data: { phone, display_name: displayName ?? "" } },
+    options: { data: { phone: phone.replace(/\D/g, "").slice(-10) } },
   });
-  if (error) {
-    return {
-      ok: false as const,
-      error: /already/i.test(error.message)
-        ? "This phone number is already registered."
-        : error.message,
-    };
-  }
+  if (error) return { ok: false as const, error: authError(error.message) };
+  return { ok: true as const };
+}
+
+/** Step 2 of registration: confirm the SMS code and create the player profile. */
+export async function verifyRegistration(phone: string, token: string, displayName?: string) {
+  const { error } = await supabase.auth.verifyOtp({
+    phone: toE164(phone),
+    token: token.trim(),
+    type: "sms",
+  });
+  if (error) return { ok: false as const, error: authError(error.message) };
+  const digits = phone.replace(/\D/g, "").slice(-10);
   try {
-    await ensureProfile({ data: { phone, ...(displayName ? { displayName } : {}) } });
+    await ensureProfile({ data: { phone: digits, ...(displayName ? { displayName } : {}) } });
   } catch (e) {
     return { ok: false as const, error: (e as Error).message };
   }
@@ -385,14 +402,64 @@ export async function registerAccount(phone: string, password: string, displayNa
   return { ok: true as const };
 }
 
+/** Resend the registration verification code. */
+export async function resendSignupOtp(phone: string) {
+  const { error } = await supabase.auth.resend({ type: "sms", phone: toE164(phone) });
+  if (error) return { ok: false as const, error: authError(error.message) };
+  return { ok: true as const };
+}
+
+/** Daily login with mobile number + password (no code required). */
 export async function loginAccount(phone: string, password: string) {
   const { error } = await supabase.auth.signInWithPassword({
-    email: emailForPhone(phone),
+    phone: toE164(phone),
     password,
   });
-  if (error) return { ok: false as const, error: "Incorrect phone number or password." };
+  if (error) return { ok: false as const, error: authError(error.message) };
   try {
-    await ensureProfile({ data: { phone } });
+    await ensureProfile({ data: { phone: phone.replace(/\D/g, "").slice(-10) } });
+  } catch (e) {
+    return { ok: false as const, error: (e as Error).message };
+  }
+  cache = null;
+  refresh();
+  return { ok: true as const };
+}
+
+/** Password recovery step 1: send a one-time code to a registered number. */
+export async function startPasswordReset(phone: string) {
+  const { error } = await supabase.auth.signInWithOtp({
+    phone: toE164(phone),
+    options: { shouldCreateUser: false },
+  });
+  if (error) {
+    return {
+      ok: false as const,
+      error: /not found|signups not allowed|user/i.test(error.message)
+        ? "That mobile number is not registered."
+        : authError(error.message),
+    };
+  }
+  return { ok: true as const };
+}
+
+/** Password recovery step 2: confirm the code, which signs the user in. */
+export async function verifyPasswordResetOtp(phone: string, token: string) {
+  const { error } = await supabase.auth.verifyOtp({
+    phone: toE164(phone),
+    token: token.trim(),
+    type: "sms",
+  });
+  if (error) return { ok: false as const, error: authError(error.message) };
+  return { ok: true as const };
+}
+
+/** Password recovery step 3: store the new password for the verified session. */
+export async function setNewPassword(phone: string, password: string) {
+  const { error } = await supabase.auth.updateUser({ password });
+  if (error) return { ok: false as const, error: authError(error.message) };
+  try {
+    await ensureProfile({ data: { phone: phone.replace(/\D/g, "").slice(-10) } });
   } catch (e) {
     return { ok: false as const, error: (e as Error).message };
   }
